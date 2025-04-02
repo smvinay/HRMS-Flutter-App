@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+
+
 
 class AttendanceCal extends StatefulWidget {
   @override
@@ -10,15 +15,20 @@ class _AttendanceCalState extends State<AttendanceCal> {
   CalendarFormat _calendarFormat = CalendarFormat.month;
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
+    String _userId = "";
 
-  final Map<DateTime, String> _attendanceData = {
-    DateTime(2025, 3, 5): 'Present',
-    DateTime(2025, 3, 6): 'Absent',
-    DateTime(2025, 3, 7): 'Holiday',
-    DateTime(2025, 3, 12): 'Present',
-    DateTime(2025, 3, 18): 'Absent',
-    DateTime(2025, 3, 26): 'In',
-  };
+
+   Map<DateTime, String> _attendanceData = {};
+  bool _isLoading = false;
+
+  // final Map<DateTime, String> _attendanceData = {
+  //   DateTime(2025, 3, 5): 'Present',
+  //   DateTime(2025, 3, 6): 'Absent',
+  //   DateTime(2025, 3, 7): 'Holiday',
+  //   DateTime(2025, 3, 12): 'Present',
+  //   DateTime(2025, 3, 18): 'Absent',
+  //   DateTime(2025, 3, 26): 'In',
+  // };
 
   final Map<String, Color> _statusColors = {
     'Present': Colors.green.shade300,
@@ -27,10 +37,52 @@ class _AttendanceCalState extends State<AttendanceCal> {
     'Holiday': Colors.orange.shade300,
   };
 
-  @override
+   @override
   void initState() {
     super.initState();
     _selectedDay = _focusedDay;
+    _fetchEmployeeDataForMonth(_focusedDay.year, _focusedDay.month);
+  }
+
+    Future<void> _fetchEmployeeDataForMonth(int year, int month) async {
+        final prefs = await SharedPreferences.getInstance();
+
+    setState(() {
+              _userId = prefs.getString('user_id') ?? "";
+      _isLoading = true;
+    });
+
+
+    String url =
+        "https://app.attendify.ai/office_webApi/public/index.php/Attendance/get_empattendacedata?userid=$_userId&year=$year&month=$month";
+
+    try {
+      final response = await http.get(Uri.parse(url));
+
+       print('Error: ${response}');
+
+      // if (response.statusCode == 200) {
+      //   final data = json.decode(response.body);
+      //   if (data['data'] != null) {
+      //     Map<DateTime, String> updatedData = {};
+      //     for (var entry in data['data']) {
+      //       DateTime date = DateTime.parse(entry['date']);
+      //       updatedData[date] = entry['status']; // Assuming 'status' contains 'Present', 'Absent', etc.
+      //     }
+      //     setState(() {
+      //       _attendanceData = updatedData;
+      //     });
+      //   }
+      // } else {
+      //   print('Error: ${response.statusCode}');
+      // }
+    } catch (error) {
+      print('API Error: $error');
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override

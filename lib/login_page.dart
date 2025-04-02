@@ -15,8 +15,8 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final TextEditingController _usernameController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
+final TextEditingController _usernameController = TextEditingController(text: 'avengersm3000@gmail.com');
+final TextEditingController _passwordController = TextEditingController(text: 'Techk@123');
   final TextEditingController _captchaController = TextEditingController();
   bool _isLoading = false;
   
@@ -36,8 +36,8 @@ Future<void> _login(BuildContext context) async {
   final SharedPreferences prefs = await SharedPreferences.getInstance();
 
   String companyCode = prefs.getString('companyCode') ?? "";
-  String username = _usernameController.text.trim();
-  String password = _passwordController.text.trim();
+  String username = _usernameController.text.trim() ?? 'avengersm3000@gmail.com';
+  String password = _passwordController.text.trim() ?? 'Techk@123';
   // String loginCompCode = companyCode.isNotEmpty ? companyCode : _companyCodeController.text.trim();
   String loginCompCode = 'TKIS';
 
