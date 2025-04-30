@@ -5,6 +5,15 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
 
+
+    <!-- <key>NSLocationWhenInUseUsageDescription</key>
+    <string>This app needs location access</string>
+    <key>NSCameraUsageDescription</key>
+    <string>This app needs camera access</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>This app needs access to the photo library</string> -->
+
+
     <application
         android:label="my_flutter_app"
         android:name="${applicationName}"
