@@ -26,7 +26,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
 
     final GlobalKey<SelfAttendanceCameraState> _cameraKey = GlobalKey();
-    
+
 
   String attendanceStatus = "checkin";
   String _username = "";
@@ -51,16 +51,17 @@ class _HomePageState extends State<HomePage> {
     _loadUserData();
   }
 
+
   Future<void> _loadUserData() async {
     final prefs = await SharedPreferences.getInstance();
     String selectedYear = DateTime.now().year.toString();
     String selectedMonth = DateTime.now().month.toString();
 
+
     setState(() {
       _userId = prefs.getString('user_id') ?? "";
       _username =
-          "${prefs.getString('username') ?? ''} ${prefs.getString('last_name') ?? ''}"
-              .trim();
+          "${prefs.getString('username') ?? ''}" .trim();
       _department = prefs.getString('department_name') ?? "Department";
     });
 
@@ -178,7 +179,8 @@ class _HomePageState extends State<HomePage> {
 
  
               final statusCard = _buildLatestStatusCard();
- 
+
+
 
     return Scaffold(
       drawer: CustomDrawer(),
@@ -211,12 +213,7 @@ class _HomePageState extends State<HomePage> {
                     key: _cameraKey,
                     attStatus: attendanceStatus, // Pass using named parameter
                   ),
-                // IconButton(
-                //   icon: Icon(Icons.camera_alt, size: 30, color: Colors.blue),
-                //   onPressed: () {
-                //     _cameraKey.currentState?.captureImage(); // ✅ Call from state
-                //   },
-                // ),
+
               ],
             ),
             const SizedBox(height: 20),
@@ -450,7 +447,7 @@ class _HomePageState extends State<HomePage> {
   } else if (checkInDT != null && checkOutDT == null) {
     attendanceStatus = "checkout";
   } else if (checkInDT != null && checkOutDT != null) {
-    attendanceStatus = "Present";
+    attendanceStatus = "checkout";
   }
 
  // Only show card if checkIn and latestCheckIn are available

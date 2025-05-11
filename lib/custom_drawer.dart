@@ -12,7 +12,6 @@ class CustomDrawer extends StatefulWidget {
 
 class _CustomDrawerState extends State<CustomDrawer> {
   String _username = "Loading...";
-  String _lastName = "Loading...";
   String _email = "Loading...";
   String _userProfile = "";
 
@@ -28,7 +27,6 @@ class _CustomDrawerState extends State<CustomDrawer> {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
       _username = prefs.getString('username') ?? "- - -";
-      _lastName = prefs.getString('last_name') ?? "- - -";
       _email = prefs.getString('email') ?? "- - -";
       _userProfile = prefs.getString('user_profile') ?? "";
 
@@ -42,7 +40,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
         children: [
           UserAccountsDrawerHeader(
             accountName: Text(
-              _username +' '+_lastName,
+              _username ,
               style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
             ),
             accountEmail: Text(
@@ -55,7 +53,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
               child: ClipOval(
                 child: _userProfile.isNotEmpty
                     ? Image.network(
-                        "https://app.attendify.ai/office_webApiMDB/public/photos/$_userProfile",
+                        "https://app.attendify.ai/template/public/photos/$_userProfile",
                         width: 60, // Set size of image
                         height: 60,
                         fit: BoxFit.cover,

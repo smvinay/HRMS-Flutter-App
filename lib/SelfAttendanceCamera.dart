@@ -34,6 +34,19 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
     attendanceStatus = widget.attStatus ?? ""; // fallback if null
   }
 
+  @override
+  void didUpdateWidget(covariant SelfAttendanceCamera oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.attStatus != widget.attStatus) {
+      setState(() {
+        attendanceStatus = widget.attStatus ?? ""; // Update local when parent changes
+      });
+    }
+
+   // print("attendanceStatus : $attendanceStatus");
+  }
+
+
   double latitude = 0;
   double longitude = 0;
 
@@ -93,28 +106,27 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
 img.fillRect(
   original,
   x1: 20,
-  y1: original.height - 150,
-  x2: 20 + (text1.length * 8),
+  y1: original.height - 200,
+  x2: 20 + (text1.length * 2),
   y2: original.height - 130,
   color: img.ColorRgb8(200, 200, 200), // Gray background
 );
-
-
 // Draw black text on top of the rectangle
 img.drawString(
   original,
   text1,
   font: img.arial14,
   x: 20,
-  y: original.height - 145,
+  y: original.height - 200,
   color: img.ColorRgb8(0, 0, 0), // Black text
 );
+
 img.fillRect(
   original,
   x1: 20,
-  y1: original.height - 120,
-  x2: 20 + (text2.length * 8),
-  y2: original.height - 100,
+  y1: original.height - 200,
+  x2: 20 + (text2.length * 2),
+  y2: original.height - 80,
   color: img.ColorRgb8(200, 200, 200),
 );
 
@@ -123,7 +135,7 @@ img.drawString(
   text2,
   font: img.arial14,
   x: 20,
-  y: original.height - 115,
+  y: original.height - 200,
   color: img.ColorRgb8(0, 0, 0),
 );
 
@@ -142,9 +154,6 @@ img.drawString(
     String captureRange,
   ) async {
 
-        _showToast('attendanceStatus' + attendanceStatus);
-
-        return;
 
       _showLoading(); // show loading indicator
 

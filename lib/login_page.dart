@@ -15,7 +15,7 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-final TextEditingController _usernameController = TextEditingController(text: 'avengersm3000@gmail.com');
+final TextEditingController _usernameController = TextEditingController(text: 'vinay.s@techkshetrainfo.com');
 final TextEditingController _passwordController = TextEditingController(text: 'Techk@123');
   final TextEditingController _captchaController = TextEditingController();
   bool _isLoading = false;
@@ -36,7 +36,7 @@ Future<void> _login(BuildContext context) async {
   final SharedPreferences prefs = await SharedPreferences.getInstance();
 
   String companyCode = prefs.getString('companyCode') ?? "";
-  String username = _usernameController.text.trim() ?? 'avengersm3000@gmail.com';
+  String username = _usernameController.text.trim() ?? 'vinay.s@techkshetrainfo.com';
   String password = _passwordController.text.trim() ?? 'Techk@123';
   // String loginCompCode = companyCode.isNotEmpty ? companyCode : _companyCodeController.text.trim();
   String loginCompCode = 'TKIS';
@@ -61,7 +61,7 @@ Future<void> _login(BuildContext context) async {
 
   setState(() => _isLoading = true);
 
-  var url = Uri.parse("https://app.attendify.ai/office_webApiMDB/public/index.php/Login_api/verify_loginMobile");
+  var url = Uri.parse("https://app.attendify.ai/template/public/index.php/Login_api/verify_loginMobile");
 
   try {
     var response = await http.post(url, body: {

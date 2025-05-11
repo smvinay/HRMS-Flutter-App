@@ -45,7 +45,7 @@ class _HeaderState extends State<Header> {
           child: ClipOval(
             child: _userProfile.isNotEmpty
                 ? Image.network(
-                    "https://app.attendify.ai/office_webApiMDB/public/photos/$_userProfile",
+                    "https://app.attendify.ai/template/public/photos/$_userProfile",
                     width: 30, height: 30, fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) {
                       return Image.asset("assets/profile.jpg", width: 30, height: 30, fit: BoxFit.cover);
