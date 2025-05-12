@@ -320,7 +320,12 @@ Future<void> _fetchEmployeeDataForMonth(int year, int month) async {
     double screenWidth = MediaQuery.of(context).size.width;
 
     return Scaffold(
-      appBar: AppBar(title: Text("Attendance Calendar")),
+      appBar: AppBar(
+        title: Text('Attendance Calendar'),
+        backgroundColor: const Color(0xFF0557a2),
+        titleTextStyle: TextStyle(color: Colors.white ,fontSize: 20),
+        iconTheme: const IconThemeData(color: Colors.white), // 👈 Make back icon white
+      ),
       body: SingleChildScrollView(
         child: Padding(
           padding: EdgeInsets.all(8),

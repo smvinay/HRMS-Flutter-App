@@ -147,7 +147,6 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
 //     return watermarkedImage;
 //   }
 
-
 Future<File> _addWatermark(File imageFile, double lat, double long) async {
   final bytes = await imageFile.readAsBytes();
   img.Image original = img.decodeImage(bytes)!;
@@ -158,45 +157,41 @@ Future<File> _addWatermark(File imageFile, double lat, double long) async {
   final text1 = 'Date: $date, Time: $time';
   final text2 = 'Lat: ${lat.toStringAsFixed(6)}, Long: ${long.toStringAsFixed(6)}';
 
-  // Choose a font size: arial_24 or arial_48
-  final font = img.arial14;
-
+  final font = img.arial48; // Larger font
   final padding = 20;
-  final lineHeight = font.lineHeight;
+  final lineHeight = font.lineHeight.toInt();
 
-  // Background for text1
+  // 20% of image height
+  final watermarkHeight = (original.height * 0.05).toInt();
+  final watermarkTop = original.height - watermarkHeight;
+
+  // Draw background over bottom 20% of image
   img.fillRect(
     original,
-    x1: padding,
-    y1: original.height - (2 * lineHeight) - 30,
-    x2: original.width - padding,
-    y2: original.height - lineHeight - 20,
+    x1: 0,
+    y1: watermarkTop,
+    x2: original.width,
+    y2: original.height,
     color: img.ColorRgb8(200, 200, 200),
   );
+
+  // Draw text1
   img.drawString(
     original,
     text1,
     font: font,
-    x: padding + 5,
-    y: original.height - (2 * lineHeight) - 25,
+    x: padding,
+    y: watermarkTop + padding,
     color: img.ColorRgb8(0, 0, 0),
   );
 
-  // Background for text2
-  img.fillRect(
-    original,
-    x1: padding,
-    y1: original.height - lineHeight - 10,
-    x2: original.width - padding,
-    y2: original.height - 5,
-    color: img.ColorRgb8(200, 200, 200),
-  );
+  // Draw text2 below text1
   img.drawString(
     original,
     text2,
     font: font,
-    x: padding + 5,
-    y: original.height - lineHeight - 5,
+    x: padding,
+    y: watermarkTop + padding + lineHeight + 10,
     color: img.ColorRgb8(0, 0, 0),
   );
 
@@ -208,6 +203,8 @@ Future<File> _addWatermark(File imageFile, double lat, double long) async {
 
   return watermarkedImage;
 }
+
+
 
 
 

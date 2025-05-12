@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'EmpNotificationPage.dart';
 
 class Header extends StatefulWidget implements PreferredSizeWidget {
   const Header({Key? key}) : super(key: key);
@@ -60,12 +61,16 @@ class _HeaderState extends State<Header> {
       ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.notifications, color: Colors.white), // ✅ Bell icon
+          icon: const Icon(Icons.notifications, color: Colors.white),
           onPressed: () {
-            // TODO: Add notification functionality
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => EmpNotificationPage()),
+            );
           },
         ),
       ],
+
     );
   }
 }

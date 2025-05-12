@@ -16,6 +16,7 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
 final TextEditingController _usernameController = TextEditingController(text: 'vinay.s@techkshetrainfo.com');
+final TextEditingController _companyCodeController = TextEditingController();
 final TextEditingController _passwordController = TextEditingController(text: 'Techk@123');
   final TextEditingController _captchaController = TextEditingController();
   bool _isLoading = false;
@@ -38,8 +39,8 @@ Future<void> _login(BuildContext context) async {
   String companyCode = prefs.getString('companyCode') ?? "";
   String username = _usernameController.text.trim() ?? 'vinay.s@techkshetrainfo.com';
   String password = _passwordController.text.trim() ?? 'Techk@123';
-  // String loginCompCode = companyCode.isNotEmpty ? companyCode : _companyCodeController.text.trim();
-  String loginCompCode = 'TKIS';
+  String loginCompCode = companyCode.isNotEmpty ? companyCode : _companyCodeController.text.trim();
+  // String loginCompCode = 'TKIS';
 
   // Validation
   if (username.isEmpty && password.isEmpty) {
@@ -175,6 +176,16 @@ void _refreshCaptcha() {
               ),
               const SizedBox(height: 3),
 
+              // Username Input
+              TextField(
+                controller: _companyCodeController,
+                decoration: const InputDecoration(
+                  labelText: 'Company Code',
+                  prefixIcon: Icon(Icons.code),
+                  border: UnderlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 3),
 
               // Username Input
               TextField(

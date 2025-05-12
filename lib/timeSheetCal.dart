@@ -40,7 +40,12 @@ class _TimesheetCalState extends State<TimesheetCal> {
     double screenWidth = MediaQuery.of(context).size.width;
 
     return Scaffold(
-      appBar: AppBar(title: Text("Timesheet Calendar")),
+      appBar: AppBar(
+        title: Text('Timesheet Calendar'),
+        backgroundColor: const Color(0xFF0557a2),
+        titleTextStyle: TextStyle(color: Colors.white ,fontSize: 20),
+        iconTheme: const IconThemeData(color: Colors.white), // 👈 Make back icon white
+      ),
       body: SingleChildScrollView(
         child: Padding(
           padding: EdgeInsets.all(10),
