@@ -93,59 +93,123 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
     }
   }
 
-  Future<File> _addWatermark(File imageFile, double lat, double long) async {
-    final bytes = await imageFile.readAsBytes();
-    img.Image original = img.decodeImage(bytes)!;
+//   Future<File> _addWatermark(File imageFile, double lat, double long) async {
+//     final bytes = await imageFile.readAsBytes();
+//     img.Image original = img.decodeImage(bytes)!;
 
-    final now = DateTime.now();
-    final date = DateFormat('dd/MM/yyyy').format(now);
-    final time = DateFormat('HH:mm:ss').format(now);
-   final text1 = 'Date: $date, Time: $time';
-    final text2 = 'Lat: ${lat.toStringAsFixed(6)}, Long: ${long.toStringAsFixed(6)}';
+//     final now = DateTime.now();
+//     final date = DateFormat('dd/MM/yyyy').format(now);
+//     final time = DateFormat('HH:mm:ss').format(now);
+//    final text1 = 'Date: $date, Time: $time';
+//     final text2 = 'Lat: ${lat.toStringAsFixed(6)}, Long: ${long.toStringAsFixed(6)}';
 
-img.fillRect(
-  original,
-  x1: 20,
-  y1: original.height - 200,
-  x2: 20 + (text1.length * 2),
-  y2: original.height - 130,
-  color: img.ColorRgb8(200, 200, 200), // Gray background
-);
-// Draw black text on top of the rectangle
-img.drawString(
-  original,
-  text1,
-  font: img.arial14,
-  x: 20,
-  y: original.height - 200,
-  color: img.ColorRgb8(0, 0, 0), // Black text
-);
+// img.fillRect(
+//   original,
+//   x1: 20,
+//   y1: original.height - 200,
+//   x2: 20 + (text1.length * 2),
+//   y2: original.height - 130,
+//   color: img.ColorRgb8(200, 200, 200), // Gray background
+// );
+// // Draw black text on top of the rectangle
+// img.drawString(
+//   original,
+//   text1,
+//   font: img.arial14,
+//   x: 20,
+//   y: original.height - 200,
+//   color: img.ColorRgb8(0, 0, 0), // Black text
+// );
 
-img.fillRect(
-  original,
-  x1: 20,
-  y1: original.height - 200,
-  x2: 20 + (text2.length * 2),
-  y2: original.height - 80,
-  color: img.ColorRgb8(200, 200, 200),
-);
+// img.fillRect(
+//   original,
+//   x1: 20,
+//   y1: original.height - 200,
+//   x2: 20 + (text2.length * 2),
+//   y2: original.height - 80,
+//   color: img.ColorRgb8(200, 200, 200),
+// );
 
-img.drawString(
-  original,
-  text2,
-  font: img.arial14,
-  x: 20,
-  y: original.height - 200,
-  color: img.ColorRgb8(0, 0, 0),
-);
+// img.drawString(
+//   original,
+//   text2,
+//   font: img.arial14,
+//   x: 20,
+//   y: original.height - 200,
+//   color: img.ColorRgb8(0, 0, 0),
+// );
 
 
-    final tempDir = await getTemporaryDirectory();
-    final watermarkedPath = '${tempDir.path}/watermarked_image.jpg';
-    File watermarkedImage = File(watermarkedPath)
-      ..writeAsBytesSync(img.encodeJpg(original, quality: 90));
-    return watermarkedImage;
-  }
+//     final tempDir = await getTemporaryDirectory();
+//     final watermarkedPath = '${tempDir.path}/watermarked_image.jpg';
+//     File watermarkedImage = File(watermarkedPath)
+//       ..writeAsBytesSync(img.encodeJpg(original, quality: 90));
+//     return watermarkedImage;
+//   }
+
+
+Future<File> _addWatermark(File imageFile, double lat, double long) async {
+  final bytes = await imageFile.readAsBytes();
+  img.Image original = img.decodeImage(bytes)!;
+
+  final now = DateTime.now();
+  final date = DateFormat('dd/MM/yyyy').format(now);
+  final time = DateFormat('HH:mm:ss').format(now);
+  final text1 = 'Date: $date, Time: $time';
+  final text2 = 'Lat: ${lat.toStringAsFixed(6)}, Long: ${long.toStringAsFixed(6)}';
+
+  // Choose a font size: arial_24 or arial_48
+  final font = img.arial14;
+
+  final padding = 20;
+  final lineHeight = font.lineHeight;
+
+  // Background for text1
+  img.fillRect(
+    original,
+    x1: padding,
+    y1: original.height - (2 * lineHeight) - 30,
+    x2: original.width - padding,
+    y2: original.height - lineHeight - 20,
+    color: img.ColorRgb8(200, 200, 200),
+  );
+  img.drawString(
+    original,
+    text1,
+    font: font,
+    x: padding + 5,
+    y: original.height - (2 * lineHeight) - 25,
+    color: img.ColorRgb8(0, 0, 0),
+  );
+
+  // Background for text2
+  img.fillRect(
+    original,
+    x1: padding,
+    y1: original.height - lineHeight - 10,
+    x2: original.width - padding,
+    y2: original.height - 5,
+    color: img.ColorRgb8(200, 200, 200),
+  );
+  img.drawString(
+    original,
+    text2,
+    font: font,
+    x: padding + 5,
+    y: original.height - lineHeight - 5,
+    color: img.ColorRgb8(0, 0, 0),
+  );
+
+  // Save updated image
+  final tempDir = await getTemporaryDirectory();
+  final watermarkedPath = '${tempDir.path}/watermarked_image.jpg';
+  File watermarkedImage = File(watermarkedPath)
+    ..writeAsBytesSync(img.encodeJpg(original, quality: 90));
+
+  return watermarkedImage;
+}
+
+
 
   Future<void> _uploadData(
     File imageFile,
