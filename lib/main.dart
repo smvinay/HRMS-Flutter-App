@@ -2,18 +2,25 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'home_page.dart';
 import 'login_page.dart';
+import 'visitor_form_page.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized(); // Ensures async execution before runApp()
+  WidgetsFlutterBinding.ensureInitialized();
   final SharedPreferences prefs = await SharedPreferences.getInstance();
-  
-  // Check stored values
-  String? userId = prefs.getString('user_id');
-  // String? levelId = prefs.getString('level_id');
-  // String? employeeCode = prefs.getString('employee_code');
 
-  // runApp(MyApp(initialRoute: (userId != null && levelId != null && employeeCode != null) ? '/home' : '/login'));
-  runApp(MyApp(initialRoute: (userId != null ) ? '/home' : '/login'));
+  String? userId = prefs.getString('user_id');
+  String? levelId = prefs.getString('level_id');
+
+  String initialRoute;
+  if (userId == null || levelId == null) {
+    initialRoute = '/login';
+  } else if (levelId == '7') {
+    initialRoute = '/visitorForm';
+  } else {
+    initialRoute = '/home';
+  }
+
+  runApp(MyApp(initialRoute: initialRoute));
 }
 
 class MyApp extends StatelessWidget {
@@ -27,19 +34,11 @@ class MyApp extends StatelessWidget {
       title: 'Sidebar App',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(primarySwatch: Colors.blue),
-      initialRoute: initialRoute, // Set the route dynamically
+      initialRoute: initialRoute,
       routes: {
         '/home': (context) => HomePage(),
-        '/profile': (context) => Scaffold(
-              appBar: AppBar(title: const Text("Profile")),
-              body: const Center(child: Text("Profile Page")),
-            ),
-        '/settings': (context) => Scaffold(
-              appBar: AppBar(title: const Text("Settings")),
-              body: const Center(child: Text("Settings Page")),
-            ),
-               '/login': (context) => LoginPage(),
-
+        '/login': (context) => LoginPage(),
+        '/visitorForm': (context) => const VisitorFormPage(),
       },
     );
   }
