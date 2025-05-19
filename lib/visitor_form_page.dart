@@ -6,7 +6,11 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 
-
+Map<int, TextEditingController> nameControllers = {};
+Map<int, TextEditingController> phoneControllers = {};
+Map<int, TextEditingController> emailControllers = {};
+Map<int, TextEditingController> purposeControllers = {};
+Map<int, TextEditingController> fromControllers = {};
 
 class VisitorFormPage extends StatefulWidget {
   const VisitorFormPage({super.key});
@@ -17,6 +21,7 @@ class VisitorFormPage extends StatefulWidget {
 
 class _VisitorFormPageState extends State<VisitorFormPage> {
   late Future<List<Visitor>> _visitorsFuture;
+
 
   @override
   void initState() {
@@ -31,15 +36,24 @@ class _VisitorFormPageState extends State<VisitorFormPage> {
     String? companyDb = prefs.getString('companyDb');
 
     if (userId != null && apiKey != null && companyDb != null) {
-      // print('User ID: $userId, API Key: $apiKey, Company DB: $companyDb');
+      final visitors = await fetchVisitors(userId, apiKey, companyDb);
       setState(() {
-        _visitorsFuture = fetchVisitors(userId, apiKey, companyDb);
+        _visitorsFuture = Future.value(visitors);
+        for (int i = 0; i < visitors.length; i++) {
+          nameControllers[i] = TextEditingController(
+              text: '${visitors[i].firstName ?? ''} ${visitors[i].lastName ?? ''}'.trim());
+          phoneControllers[i] = TextEditingController(text: visitors[i].contact ?? '');
+          emailControllers[i] = TextEditingController(text: visitors[i].email ?? '');
+          purposeControllers[i] = TextEditingController(text: visitors[i].purposeOfVisit ?? '');
+          fromControllers[i] = TextEditingController(text: visitors[i].guestFrom ?? '');
+        }
       });
-    } else {
-      // Handle missing values (e.g., navigate to login screen or show error)
-      // print('Missing credentials in local storage.');
     }
   }
+
+
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -122,9 +136,7 @@ class _VisitorFormPageState extends State<VisitorFormPage> {
                               border: OutlineInputBorder(),
                               contentPadding: EdgeInsets.symmetric(vertical: 5.0, horizontal: 12.0), // Reduced padding
                             ),
-                            controller: TextEditingController(
-                              text: '${visitor.firstName ?? ''} ${visitor.lastName ?? ''}'.trim(),
-                            ),
+                            controller: nameControllers[index],
                           ),
                           const SizedBox(height: 12),
                           TextField(
@@ -134,9 +146,7 @@ class _VisitorFormPageState extends State<VisitorFormPage> {
                               border: OutlineInputBorder(),
                               contentPadding: EdgeInsets.symmetric(vertical: 5.0, horizontal: 12.0), // Reduced padding
                             ),
-                            controller: TextEditingController(
-                              text: visitor.contact ?? '',
-                            ),
+                            controller: phoneControllers[index],
                             keyboardType: TextInputType.phone,
                           ),
                           const SizedBox(height: 12),
@@ -147,9 +157,7 @@ class _VisitorFormPageState extends State<VisitorFormPage> {
                               border: OutlineInputBorder(),
                               contentPadding: EdgeInsets.symmetric(vertical: 5.0, horizontal: 12.0), // Reduced padding
                             ),
-                            controller: TextEditingController(
-                              text: visitor.email ?? '',
-                            ),
+                            controller: emailControllers[index],
                             keyboardType: TextInputType.emailAddress,
                           ),
                           const SizedBox(height: 12),
@@ -175,9 +183,7 @@ class _VisitorFormPageState extends State<VisitorFormPage> {
                               border: OutlineInputBorder(),
                               contentPadding: EdgeInsets.symmetric(vertical: 5.0, horizontal: 12.0), // Reduced padding
                             ),
-                            controller: TextEditingController(
-                              text: visitor.purposeOfVisit ?? '',
-                            ),
+                            controller: purposeControllers[index],
                           ),
                           const SizedBox(height: 12),
                           TextField(
@@ -187,14 +193,12 @@ class _VisitorFormPageState extends State<VisitorFormPage> {
                               border: OutlineInputBorder(),
                               contentPadding: EdgeInsets.symmetric(vertical: 5.0, horizontal: 12.0), // Reduced padding
                             ),
-                            controller: TextEditingController(
-                              text: visitor.guestFrom ?? '',
-                            ),
+                            controller: fromControllers[index],
                           ),
                           const SizedBox(height: 20),
                           ElevatedButton(
                             onPressed: () async {
-                              await submitVisitorData(context, visitor);
+                              await submitVisitorData(context, visitor, index);
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF0557a2),
@@ -282,7 +286,7 @@ Future<List<Visitor>> fetchVisitors(String userId, String apiKey, String company
   }
 }
 
-Future<void> submitVisitorData(BuildContext context, Visitor visitor) async {
+Future<void> submitVisitorData(BuildContext context, Visitor visitor, int index) async {
   final prefs = await SharedPreferences.getInstance();
   final apiKey = prefs.getString('apiKey');
   final companyDb = prefs.getString('companyDb');
@@ -303,12 +307,13 @@ Future<void> submitVisitorData(BuildContext context, Visitor visitor) async {
       'companyDb': companyDb,
     },
     body: {
-      'first_name': visitor.firstName ?? '',
-      'purpose': visitor.purposeOfVisit ?? '',
-      'email': visitor.email ?? '',
+      'first_name': nameControllers[index]?.text ?? '',
+      'contact': phoneControllers[index]?.text ?? '',
+      'email': emailControllers[index]?.text ?? '',
+      'purpose': purposeControllers[index]?.text ?? '',
+      'guestfrom': fromControllers[index]?.text ?? '',
       'guestID': visitor.guestId,
       'guestfrom': visitor.guestFrom ?? '',
-      'contact': visitor.contact ?? '',
       'user_id': '17',
     },
   );
