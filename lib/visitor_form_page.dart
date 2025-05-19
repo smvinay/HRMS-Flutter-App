@@ -37,7 +37,7 @@ class _VisitorFormPageState extends State<VisitorFormPage> {
       });
     } else {
       // Handle missing values (e.g., navigate to login screen or show error)
-      print('Missing credentials in local storage.');
+      // print('Missing credentials in local storage.');
     }
   }
 
@@ -68,7 +68,7 @@ class _VisitorFormPageState extends State<VisitorFormPage> {
               itemBuilder: (context, index) {
                 final visitor = visitors[index];
                 return Padding(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.all(10.0),
                   child: Card(
                     elevation: 4,
                     shape: RoundedRectangleBorder(
@@ -192,20 +192,17 @@ class _VisitorFormPageState extends State<VisitorFormPage> {
                             ),
                           ),
                           const SizedBox(height: 20),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton(
-                              onPressed: () {
-                                // Implement form submission logic here
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF0557a2),
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                              ),
-                              child: const Text(
-                                'Save',
-                                style: TextStyle(color: Colors.white),
-                              ),
+                          ElevatedButton(
+                            onPressed: () async {
+                              await submitVisitorData(context, visitor);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF0557a2),
+                              padding: const EdgeInsets.symmetric(vertical: 15),
+                            ),
+                            child: const Text(
+                              'Save',
+                              style: TextStyle(color: Colors.white),
                             ),
                           ),
                         ],
@@ -284,3 +281,54 @@ Future<List<Visitor>> fetchVisitors(String userId, String apiKey, String company
     throw Exception('Failed to load visitors');
   }
 }
+
+Future<void> submitVisitorData(BuildContext context, Visitor visitor) async {
+  final prefs = await SharedPreferences.getInstance();
+  final apiKey = prefs.getString('apiKey');
+  final companyDb = prefs.getString('companyDb');
+
+  if (apiKey == null || companyDb == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Missing API credentials.')),
+    );
+    return;
+  }
+
+  final url = Uri.parse('https://app.attendify.ai/template/public/index.php/Guest/update_guest_mobile'); // Replace with actual
+
+  final response = await http.post(
+    url,
+    headers: {
+      'apiKey': apiKey,
+      'companyDb': companyDb,
+    },
+    body: {
+      'first_name': visitor.firstName ?? '',
+      'purpose': visitor.purposeOfVisit ?? '',
+      'email': visitor.email ?? '',
+      'guestID': visitor.guestId,
+      'guestfrom': visitor.guestFrom ?? '',
+      'contact': visitor.contact ?? '',
+      'user_id': '17',
+    },
+  );
+
+  if (response.statusCode == 200) {
+    final data = json.decode(response.body);
+    if (data['status'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Data submitted successfully')),
+      );
+      // Optional: refresh the visitor list
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(data['message'] ?? 'Submission failed')),
+      );
+    }
+  } else {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Server error.')),
+    );
+  }
+}
+
