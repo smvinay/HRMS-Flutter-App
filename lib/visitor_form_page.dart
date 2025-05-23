@@ -82,9 +82,6 @@ class _VisitorFormPageState extends State<VisitorFormPage> {
 
   @override
   Widget build(BuildContext context) {
-    final screenHeight = MediaQuery.of(context).size.height;
-    final screenWidth = MediaQuery.of(context).size.width;
-
     return Scaffold(
       appBar: const VisitorHeader(), // <-- Use VisitorHeader here
       drawer: const VisitorDrawerPage(), // ✅ Drawer required for opening
@@ -192,26 +189,6 @@ class _VisitorFormPageState extends State<VisitorFormPage> {
                             keyboardType: TextInputType.emailAddress,
                           ),
                           const SizedBox(height: 10),
-                          // DropdownButtonFormField<String>(
-                          //   decoration: const InputDecoration(
-                          //     labelText: 'Select Employee',
-                          //     border: OutlineInputBorder(),
-                          //     contentPadding: EdgeInsets.symmetric(
-                          //         vertical: 5.0,
-                          //         horizontal: 12.0), // Reduced padding
-                          //   ),
-                          //   items: const [
-                          //     DropdownMenuItem(
-                          //         value: 'Employee A',
-                          //         child: Text('Employee A')),
-                          //     DropdownMenuItem(
-                          //         value: 'Employee B',
-                          //         child: Text('Employee B')),
-                          //   ],
-                          //   onChanged: (value) {
-                          //     // Handle employee selection
-                          //   },
-                          // ),
                           emplyeesList(context),
                           const SizedBox(height: 10),
                           TextField(
