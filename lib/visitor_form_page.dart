@@ -1,3 +1,4 @@
+import 'package:dropdown_search/dropdown_search.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'VisitorDrawerPage.dart';
@@ -21,11 +22,15 @@ class VisitorFormPage extends StatefulWidget {
 
 class _VisitorFormPageState extends State<VisitorFormPage> {
   late Future<List<Visitor>> _visitorsFuture;
+  List<Employee> _employees = [];
+  Employee? _selectedEmployee;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _loadVisitorData(); // Async call delegated
+    loadEmployees();
   }
 
   void _loadVisitorData() async {
@@ -53,6 +58,25 @@ class _VisitorFormPageState extends State<VisitorFormPage> {
               TextEditingController(text: visitors[i].guestFrom ?? '');
         }
       });
+    }
+  }
+
+  Future<void> loadEmployees() async {
+    final prefs = await SharedPreferences.getInstance();
+    String? userId = prefs.getString('cid');
+    String? apiKey = prefs.getString('apiKey');
+    String? companyDb = prefs.getString('companyDb');
+    if (userId != null && apiKey != null && companyDb != null) {
+      try {
+        final employees = await fetchEmployees(userId, apiKey, companyDb);
+        setState(() {
+          _employees = employees;
+          _isLoading = false;
+        });
+      } catch (e) {
+        print("Error fetching employees: $e");
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -168,26 +192,27 @@ class _VisitorFormPageState extends State<VisitorFormPage> {
                             keyboardType: TextInputType.emailAddress,
                           ),
                           const SizedBox(height: 10),
-                          DropdownButtonFormField<String>(
-                            decoration: const InputDecoration(
-                              labelText: 'Select Employee',
-                              border: OutlineInputBorder(),
-                              contentPadding: EdgeInsets.symmetric(
-                                  vertical: 5.0,
-                                  horizontal: 12.0), // Reduced padding
-                            ),
-                            items: const [
-                              DropdownMenuItem(
-                                  value: 'Employee A',
-                                  child: Text('Employee A')),
-                              DropdownMenuItem(
-                                  value: 'Employee B',
-                                  child: Text('Employee B')),
-                            ],
-                            onChanged: (value) {
-                              // Handle employee selection
-                            },
-                          ),
+                          // DropdownButtonFormField<String>(
+                          //   decoration: const InputDecoration(
+                          //     labelText: 'Select Employee',
+                          //     border: OutlineInputBorder(),
+                          //     contentPadding: EdgeInsets.symmetric(
+                          //         vertical: 5.0,
+                          //         horizontal: 12.0), // Reduced padding
+                          //   ),
+                          //   items: const [
+                          //     DropdownMenuItem(
+                          //         value: 'Employee A',
+                          //         child: Text('Employee A')),
+                          //     DropdownMenuItem(
+                          //         value: 'Employee B',
+                          //         child: Text('Employee B')),
+                          //   ],
+                          //   onChanged: (value) {
+                          //     // Handle employee selection
+                          //   },
+                          // ),
+                          emplyeesList(context),
                           const SizedBox(height: 10),
                           TextField(
                             decoration: InputDecoration(
@@ -243,6 +268,68 @@ class _VisitorFormPageState extends State<VisitorFormPage> {
     );
   }
 
+  Widget emplyeesList(BuildContext context) {
+    return _isLoading
+        ? Center(child: CircularProgressIndicator())
+        : DropdownSearch<Employee>(
+      items: _employees,
+      itemAsString: (Employee e) => e.firstName,
+      selectedItem: _selectedEmployee,
+      onChanged: (Employee? val) {
+        setState(() {
+          _selectedEmployee = val;
+        });
+      },
+      dropdownDecoratorProps: DropDownDecoratorProps(
+        dropdownSearchDecoration: InputDecoration(
+          labelText: "Select Employee",
+          border: OutlineInputBorder(),
+          contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        ),
+      ),
+      popupProps: PopupProps.menu(
+        showSearchBox: true,
+        constraints: BoxConstraints(maxHeight: 300), // limits popup height
+        searchFieldProps: TextFieldProps(
+          decoration: InputDecoration(
+            labelText: "Search",
+            prefixIcon: Icon(Icons.search),
+            contentPadding: EdgeInsets.symmetric(vertical: 0, horizontal: 10),
+            border: OutlineInputBorder(),
+          ),
+        ),
+        itemBuilder: (context, employee, isSelected) {
+          return Container(
+            padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            margin: EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+            decoration: BoxDecoration(
+              color: isSelected ? Colors.blue.shade50 : null,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              children: [
+                // Placeholder profile image or use employee.profileUrl if available
+                CircleAvatar(
+                  radius: 16,
+                  backgroundImage: NetworkImage("https://app.attendify.ai/template/public/photos/${employee.profileThumbnail}"),
+                  backgroundColor: Colors.grey.shade300,
+                ),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    employee.firstName,
+                    style: TextStyle(fontSize: 14),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+
   void _showflashbar(String message, Color color) {
     Flushbar(
       message: message,
@@ -254,8 +341,7 @@ class _VisitorFormPageState extends State<VisitorFormPage> {
     ).show(context);
   }
 
-  Future<List<Visitor>> fetchVisitors(
-      String userId, String apiKey, String companyDb) async {
+  Future<List<Visitor>> fetchVisitors(String userId, String apiKey, String companyDb) async {
     final url = Uri.parse(
         'https://app.attendify.ai/template/public/index.php/Guest/index?user_id=$userId');
     final response = await http.get(
@@ -265,14 +351,33 @@ class _VisitorFormPageState extends State<VisitorFormPage> {
         'companyDb': companyDb,
       },
     );
-// print("response $response");
     if (response.statusCode == 200) {
+      // print(json.decode(response.body)['data']);
       final List<dynamic> data = json.decode(response.body)['data'];
       return data.map((json) => Visitor.fromJson(json)).toList();
     } else {
       throw Exception('Failed to load visitors');
     }
   }
+
+  Future<List<Employee>> fetchEmployees(String userId, String apiKey, String companyDb) async {
+    final response = await http.get(
+      Uri.parse('https://app.attendify.ai/template/public/index.php/Dashboard/getUsers?user_id=$userId'),
+      headers: {
+        'apiKey': apiKey,
+        'companyDb': companyDb,
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      final List users = data['data']; // Adjust if your key is different
+      return users.map((e) => Employee.fromJson(e)).toList();
+    } else {
+      throw Exception('Failed to load employees');
+    }
+  }
+
 
   Future<void> submitVisitorData(
       BuildContext context, Visitor visitor, int index) async {
@@ -289,7 +394,6 @@ class _VisitorFormPageState extends State<VisitorFormPage> {
 
     final url = Uri.parse(
         'https://app.attendify.ai/template/public/index.php/Guest/update_guest_mobile'); // Replace with actual
-
     final response = await http.post(
       url,
       headers: {
@@ -303,8 +407,7 @@ class _VisitorFormPageState extends State<VisitorFormPage> {
         'purpose': purposeControllers[index]?.text ?? '',
         'guestfrom': fromControllers[index]?.text ?? '',
         'guestID': visitor.id,
-        'guestfrom': visitor.guestFrom ?? '',
-        'user_id': '17',
+        'user_id': _selectedEmployee?.id ?? 0,
       },
     );
 
@@ -312,6 +415,7 @@ class _VisitorFormPageState extends State<VisitorFormPage> {
       final data = json.decode(response.body);
       if (data['status'] == true) {
         _showflashbar("Data submitted successfully", Colors.green.shade300);
+        _loadVisitorData();
         // Optional: refresh the visitor list
       } else {
         _showflashbar(
@@ -366,3 +470,34 @@ class Visitor {
     );
   }
 }
+
+class Employee {
+  final String id;
+  final String employeCode;
+  final String firstName;
+  final String? lastName;
+  final String? userProfile;
+  final String? profileThumbnail;
+
+  Employee({
+    required this.id,
+    required this.employeCode,
+    required this.firstName,
+    this.lastName,
+    this.userProfile,
+    this.profileThumbnail,
+  });
+
+  factory Employee.fromJson(Map<String, dynamic> json) {
+    return Employee(
+      id: json['id'],
+      employeCode: json['employe_code'],
+      firstName: json['first_name'],
+      lastName: json['last_name'],
+      userProfile: json['user_profile'],
+      profileThumbnail: json['profile_thumbnail'],
+    );
+  }
+}
+
+
