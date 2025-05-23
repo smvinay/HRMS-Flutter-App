@@ -8,6 +8,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
+import 'package:another_flushbar/flushbar.dart';
+
 
 class SelfAttendanceCamera extends StatefulWidget {
     final String? attStatus; // Declare variable
@@ -93,60 +95,6 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
     }
   }
 
-//   Future<File> _addWatermark(File imageFile, double lat, double long) async {
-//     final bytes = await imageFile.readAsBytes();
-//     img.Image original = img.decodeImage(bytes)!;
-
-//     final now = DateTime.now();
-//     final date = DateFormat('dd/MM/yyyy').format(now);
-//     final time = DateFormat('HH:mm:ss').format(now);
-//    final text1 = 'Date: $date, Time: $time';
-//     final text2 = 'Lat: ${lat.toStringAsFixed(6)}, Long: ${long.toStringAsFixed(6)}';
-
-// img.fillRect(
-//   original,
-//   x1: 20,
-//   y1: original.height - 200,
-//   x2: 20 + (text1.length * 2),
-//   y2: original.height - 130,
-//   color: img.ColorRgb8(200, 200, 200), // Gray background
-// );
-// // Draw black text on top of the rectangle
-// img.drawString(
-//   original,
-//   text1,
-//   font: img.arial14,
-//   x: 20,
-//   y: original.height - 200,
-//   color: img.ColorRgb8(0, 0, 0), // Black text
-// );
-
-// img.fillRect(
-//   original,
-//   x1: 20,
-//   y1: original.height - 200,
-//   x2: 20 + (text2.length * 2),
-//   y2: original.height - 80,
-//   color: img.ColorRgb8(200, 200, 200),
-// );
-
-// img.drawString(
-//   original,
-//   text2,
-//   font: img.arial14,
-//   x: 20,
-//   y: original.height - 200,
-//   color: img.ColorRgb8(0, 0, 0),
-// );
-
-
-//     final tempDir = await getTemporaryDirectory();
-//     final watermarkedPath = '${tempDir.path}/watermarked_image.jpg';
-//     File watermarkedImage = File(watermarkedPath)
-//       ..writeAsBytesSync(img.encodeJpg(original, quality: 90));
-//     return watermarkedImage;
-//   }
-
 Future<File> _addWatermark(File imageFile, double lat, double long) async {
   final bytes = await imageFile.readAsBytes();
   img.Image original = img.decodeImage(bytes)!;
@@ -162,7 +110,7 @@ Future<File> _addWatermark(File imageFile, double lat, double long) async {
   final lineHeight = font.lineHeight.toInt();
 
   // 20% of image height
-  final watermarkHeight = (original.height * 0.05).toInt();
+  final watermarkHeight = (original.height * 0.08).toInt();
   final watermarkTop = original.height - watermarkHeight;
 
   // Draw background over bottom 20% of image
@@ -172,7 +120,7 @@ Future<File> _addWatermark(File imageFile, double lat, double long) async {
     y1: watermarkTop,
     x2: original.width,
     y2: original.height,
-    color: img.ColorRgb8(200, 200, 200),
+    color: img.ColorRgb8(226, 226, 226),
   );
 
   // Draw text1
@@ -203,35 +151,24 @@ Future<File> _addWatermark(File imageFile, double lat, double long) async {
 
   return watermarkedImage;
 }
-
-
-
-
-
   Future<void> _uploadData(
     File imageFile,
     double latitude,
     double longitude,
     String captureRange,
   ) async {
-
-
       _showLoading(); // show loading indicator
-
     final now = DateTime.now();
     final timestamp = DateFormat('yyyy-MM-dd HH:mm:ss').format(now);
-
-     final prefs = await SharedPreferences.getInstance();
+    final prefs = await SharedPreferences.getInstance();
     final apiKey = prefs.getString('apiKey') ?? "";
     final companyDb = prefs.getString('companyDb') ?? "";
     final collectionId = prefs.getString('unique_code') ?? "";
     final empCode = prefs.getString('employe_code') ?? "";
-
     var request = http.MultipartRequest(
       'POST',
       Uri.parse('https://vision.techkshetra.ai/faceRecognitionEngine/index.php/Auth/authenticate_recapture_self'),
     );
-
     request.headers.addAll({
       'apiKey': apiKey,
       'companyDb': companyDb,
@@ -253,26 +190,24 @@ Future<File> _addWatermark(File imageFile, double lat, double long) async {
       debugPrint("API Response: $responseBody");
 
       if (response.statusCode == 200 && responseBody.isNotEmpty ) {
-
-        
       final Map<String, dynamic> result = jsonDecode(responseBody);
-
       if (result['type'] == 'attendance' && result['status'] == 'success') {
-        _showToast("Attendance marked successfully");
+        // _showToast("Attendance marked successfully");
+        _showflashbar("Attendance marked successfully", Colors.green.shade300);
+
       } else if (result['type'] == 'errorface') {
-        _showToast("Face mismatch. Please try again.");
+        _showflashbar( "Face mismatch. Please try again.", Colors.red.shade300);
       } else if (result['type'] == 'nullface') {
-        _showToast("No face detected. Please try again.");
+        _showflashbar("No face detected. Please try again.", Colors.red.shade300);
       } else {
-        _showToast("Unexpected response from server.");
+    _showflashbar("Unexpected response from server.", Colors.red.shade300);
       }
     } else {
       // _showToast("Upload failed. Status Code: ${response.statusCode}");
-      _showToast("Somthing went wrong, please try again");
-
+        _showflashbar("Somthing went wrong, please try again", Colors.red.shade300);
     }
   } catch (e) {
-    _showToast("Upload failed: $e");
+      _showflashbar("Upload failed: $e", Colors.red.shade300);
   } finally {
     _hideLoading(); // always hide loading, even on error
   }
@@ -323,6 +258,19 @@ Future<File> _addWatermark(File imageFile, double lat, double long) async {
 
 void _hideLoading() {
   Navigator.of(context, rootNavigator: true).pop();
+}
+
+void _showflashbar(String  message , Color color) {
+
+  Flushbar(
+    message: message,
+    duration: Duration(seconds: 2),
+    backgroundColor: color,
+    borderRadius: BorderRadius.circular(8),
+    margin: EdgeInsets.all(12),
+    flushbarPosition: FlushbarPosition.TOP,
+  ).show(context);
+
 }
 
 

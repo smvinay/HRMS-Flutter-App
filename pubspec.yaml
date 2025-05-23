@@ -40,6 +40,8 @@ dependencies:
   cupertino_icons: ^1.0.8
   image_picker: ^1.1.2
   geolocator: ^13.0.3
+  another_flushbar: ^1.10.29
+  
 
 
 dev_dependencies:

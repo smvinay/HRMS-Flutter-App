@@ -4,7 +4,7 @@ import 'VisitorDrawerPage.dart';
 import 'visitor_header.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-
+import 'package:another_flushbar/flushbar.dart';
 
 Map<int, TextEditingController> nameControllers = {};
 Map<int, TextEditingController> phoneControllers = {};
@@ -21,7 +21,6 @@ class VisitorFormPage extends StatefulWidget {
 
 class _VisitorFormPageState extends State<VisitorFormPage> {
   late Future<List<Visitor>> _visitorsFuture;
-
 
   @override
   void initState() {
@@ -41,19 +40,21 @@ class _VisitorFormPageState extends State<VisitorFormPage> {
         _visitorsFuture = Future.value(visitors);
         for (int i = 0; i < visitors.length; i++) {
           nameControllers[i] = TextEditingController(
-              text: '${visitors[i].firstName ?? ''} ${visitors[i].lastName ?? ''}'.trim());
-          phoneControllers[i] = TextEditingController(text: visitors[i].contact ?? '');
-          emailControllers[i] = TextEditingController(text: visitors[i].email ?? '');
-          purposeControllers[i] = TextEditingController(text: visitors[i].purposeOfVisit ?? '');
-          fromControllers[i] = TextEditingController(text: visitors[i].guestFrom ?? '');
+              text:
+                  '${visitors[i].firstName ?? ''} ${visitors[i].lastName ?? ''}'
+                      .trim());
+          phoneControllers[i] =
+              TextEditingController(text: visitors[i].contact ?? '');
+          emailControllers[i] =
+              TextEditingController(text: visitors[i].email ?? '');
+          purposeControllers[i] =
+              TextEditingController(text: visitors[i].purposeOfVisit ?? '');
+          fromControllers[i] =
+              TextEditingController(text: visitors[i].guestFrom ?? '');
         }
       });
     }
   }
-
-
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -134,81 +135,101 @@ class _VisitorFormPageState extends State<VisitorFormPage> {
                               labelText: 'Name',
                               hintText: 'Enter Name',
                               border: OutlineInputBorder(),
-                              contentPadding: EdgeInsets.symmetric(vertical: 5.0, horizontal: 12.0), // Reduced padding
+                              contentPadding: EdgeInsets.symmetric(
+                                  vertical: 5.0,
+                                  horizontal: 12.0), // Reduced padding
                             ),
                             controller: nameControllers[index],
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 10),
                           TextField(
                             decoration: InputDecoration(
                               labelText: 'Phone Number',
                               hintText: 'Enter Phone Number',
                               border: OutlineInputBorder(),
-                              contentPadding: EdgeInsets.symmetric(vertical: 5.0, horizontal: 12.0), // Reduced padding
+                              contentPadding: EdgeInsets.symmetric(
+                                  vertical: 5.0,
+                                  horizontal: 12.0), // Reduced padding
                             ),
                             controller: phoneControllers[index],
                             keyboardType: TextInputType.phone,
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 10),
                           TextField(
                             decoration: InputDecoration(
                               labelText: 'Email',
                               hintText: 'Enter Email',
                               border: OutlineInputBorder(),
-                              contentPadding: EdgeInsets.symmetric(vertical: 5.0, horizontal: 12.0), // Reduced padding
+                              contentPadding: EdgeInsets.symmetric(
+                                  vertical: 5.0,
+                                  horizontal: 12.0), // Reduced padding
                             ),
                             controller: emailControllers[index],
                             keyboardType: TextInputType.emailAddress,
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 10),
                           DropdownButtonFormField<String>(
                             decoration: const InputDecoration(
                               labelText: 'Select Employee',
                               border: OutlineInputBorder(),
-                              contentPadding: EdgeInsets.symmetric(vertical: 5.0, horizontal: 12.0), // Reduced padding
+                              contentPadding: EdgeInsets.symmetric(
+                                  vertical: 5.0,
+                                  horizontal: 12.0), // Reduced padding
                             ),
                             items: const [
-                              DropdownMenuItem(value: 'Employee A', child: Text('Employee A')),
-                              DropdownMenuItem(value: 'Employee B', child: Text('Employee B')),
+                              DropdownMenuItem(
+                                  value: 'Employee A',
+                                  child: Text('Employee A')),
+                              DropdownMenuItem(
+                                  value: 'Employee B',
+                                  child: Text('Employee B')),
                             ],
                             onChanged: (value) {
                               // Handle employee selection
                             },
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 10),
                           TextField(
                             decoration: InputDecoration(
                               labelText: 'Purpose',
                               hintText: 'Enter Purpose',
                               border: OutlineInputBorder(),
-                              contentPadding: EdgeInsets.symmetric(vertical: 5.0, horizontal: 12.0), // Reduced padding
+                              contentPadding: EdgeInsets.symmetric(
+                                  vertical: 5.0,
+                                  horizontal: 12.0), // Reduced padding
                             ),
                             controller: purposeControllers[index],
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 10),
                           TextField(
                             decoration: InputDecoration(
                               labelText: 'From',
                               hintText: 'Enter From',
                               border: OutlineInputBorder(),
-                              contentPadding: EdgeInsets.symmetric(vertical: 5.0, horizontal: 12.0), // Reduced padding
+                              contentPadding: EdgeInsets.symmetric(
+                                  vertical: 5.0,
+                                  horizontal: 12.0), // Reduced padding
                             ),
                             controller: fromControllers[index],
                           ),
-                          const SizedBox(height: 20),
-                          ElevatedButton(
-                            onPressed: () async {
-                              await submitVisitorData(context, visitor, index);
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF0557a2),
-                              padding: const EdgeInsets.symmetric(vertical: 15),
+                          const SizedBox(height: 10),
+                          SizedBox(
+                            width: double.infinity, // Makes the button full-width
+                            child: ElevatedButton(
+                              onPressed: () async {
+                                await submitVisitorData(context, visitor, index);
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF0557a2),
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                              ),
+                              child: const Text(
+                                'Save',
+                                style: TextStyle(color: Colors.white),
+                              ),
                             ),
-                            child: const Text(
-                              'Save',
-                              style: TextStyle(color: Colors.white),
-                            ),
-                          ),
+                          )
+
                         ],
                       ),
                     ),
@@ -220,6 +241,85 @@ class _VisitorFormPageState extends State<VisitorFormPage> {
         },
       ),
     );
+  }
+
+  void _showflashbar(String message, Color color) {
+    Flushbar(
+      message: message,
+      duration: Duration(seconds: 2),
+      backgroundColor: color,
+      borderRadius: BorderRadius.circular(8),
+      margin: EdgeInsets.all(12),
+      flushbarPosition: FlushbarPosition.TOP,
+    ).show(context);
+  }
+
+  Future<List<Visitor>> fetchVisitors(
+      String userId, String apiKey, String companyDb) async {
+    final url = Uri.parse(
+        'https://app.attendify.ai/template/public/index.php/Guest/index?user_id=$userId');
+    final response = await http.get(
+      url,
+      headers: {
+        'apiKey': apiKey,
+        'companyDb': companyDb,
+      },
+    );
+// print("response $response");
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body)['data'];
+      return data.map((json) => Visitor.fromJson(json)).toList();
+    } else {
+      throw Exception('Failed to load visitors');
+    }
+  }
+
+  Future<void> submitVisitorData(
+      BuildContext context, Visitor visitor, int index) async {
+    final prefs = await SharedPreferences.getInstance();
+    final apiKey = prefs.getString('apiKey');
+    final companyDb = prefs.getString('companyDb');
+
+    if (apiKey == null || companyDb == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Missing API credentials.')),
+      );
+      return;
+    }
+
+    final url = Uri.parse(
+        'https://app.attendify.ai/template/public/index.php/Guest/update_guest_mobile'); // Replace with actual
+
+    final response = await http.post(
+      url,
+      headers: {
+        'apiKey': apiKey,
+        'companyDb': companyDb,
+      },
+      body: {
+        'first_name': nameControllers[index]?.text ?? '',
+        'contact': phoneControllers[index]?.text ?? '',
+        'email': emailControllers[index]?.text ?? '',
+        'purpose': purposeControllers[index]?.text ?? '',
+        'guestfrom': fromControllers[index]?.text ?? '',
+        'guestID': visitor.id,
+        'guestfrom': visitor.guestFrom ?? '',
+        'user_id': '17',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      if (data['status'] == true) {
+        _showflashbar("Data submitted successfully", Colors.green.shade300);
+        // Optional: refresh the visitor list
+      } else {
+        _showflashbar(
+            data['message'] ?? 'Submission failed', Colors.red.shade300);
+      }
+    } else {
+      _showflashbar('Submission failed', Colors.red.shade300);
+    }
   }
 }
 
@@ -266,74 +366,3 @@ class Visitor {
     );
   }
 }
-
-
-Future<List<Visitor>> fetchVisitors(String userId, String apiKey, String companyDb) async {
-  final url = Uri.parse('https://app.attendify.ai/template/public/index.php/Guest/index?user_id=$userId');
-  final response = await http.get(
-    url,
-    headers: {
-      'apiKey': apiKey,
-      'companyDb': companyDb,
-    },
-  );
-// print("response $response");
-  if (response.statusCode == 200) {
-    final List<dynamic> data = json.decode(response.body)['data'];
-    return data.map((json) => Visitor.fromJson(json)).toList();
-  } else {
-    throw Exception('Failed to load visitors');
-  }
-}
-
-Future<void> submitVisitorData(BuildContext context, Visitor visitor, int index) async {
-  final prefs = await SharedPreferences.getInstance();
-  final apiKey = prefs.getString('apiKey');
-  final companyDb = prefs.getString('companyDb');
-
-  if (apiKey == null || companyDb == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Missing API credentials.')),
-    );
-    return;
-  }
-
-  final url = Uri.parse('https://app.attendify.ai/template/public/index.php/Guest/update_guest_mobile'); // Replace with actual
-
-  final response = await http.post(
-    url,
-    headers: {
-      'apiKey': apiKey,
-      'companyDb': companyDb,
-    },
-    body: {
-      'first_name': nameControllers[index]?.text ?? '',
-      'contact': phoneControllers[index]?.text ?? '',
-      'email': emailControllers[index]?.text ?? '',
-      'purpose': purposeControllers[index]?.text ?? '',
-      'guestfrom': fromControllers[index]?.text ?? '',
-      'guestID': visitor.guestId,
-      'guestfrom': visitor.guestFrom ?? '',
-      'user_id': '17',
-    },
-  );
-
-  if (response.statusCode == 200) {
-    final data = json.decode(response.body);
-    if (data['status'] == true) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Data submitted successfully')),
-      );
-      // Optional: refresh the visitor list
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(data['message'] ?? 'Submission failed')),
-      );
-    }
-  } else {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Server error.')),
-    );
-  }
-}
-
