@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'VisitorsHomePage.dart';
+
 class VisitorHeader extends StatelessWidget implements PreferredSizeWidget {
   const VisitorHeader({Key? key}) : super(key: key);
 
@@ -38,6 +40,17 @@ class VisitorHeader extends StatelessWidget implements PreferredSizeWidget {
           );
         },
       ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.home, color: Colors.white),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const VisitorsHomePage()),
+            );
+          },
+        ),
+      ],
     );
   }
 }

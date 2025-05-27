@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:my_flutter_app/visitor_form_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'VisitorsHomePage.dart';
 
 class VisitorDrawerPage extends StatelessWidget {
   const VisitorDrawerPage({super.key});
@@ -50,18 +53,24 @@ class VisitorDrawerPage extends StatelessWidget {
             icon: Icons.home,
             title: 'Home',
             onTap: () {
-              Navigator.pop(context);
-              // Navigate to Home if needed
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const VisitorsHomePage()),
+              );
             },
           ),
+
           _buildDrawerItem(
             icon: Icons.edit_note,
             title: 'Entry Forms',
             onTap: () {
-              Navigator.pop(context);
-              // Example: Navigator.pushNamed(context, '/visitorForm');
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const VisitorFormPage()),
+              );
             },
           ),
+
           _buildDrawerItem(
             icon: Icons.archive,
             title: 'Archives',
