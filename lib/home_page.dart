@@ -11,23 +11,16 @@ import 'timeSheetCal.dart';
 import 'leaveCal.dart';
 import 'attendanceCal.dart';
 import 'package:intl/intl.dart';
-
 import 'SelfAttendanceCamera.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
-
   @override
   _HomePageState createState() => _HomePageState();
 
 }
-
-
 class _HomePageState extends State<HomePage> {
-
     final GlobalKey<SelfAttendanceCameraState> _cameraKey = GlobalKey();
-
-
   String attendanceStatus = "checkin";
   String _username = "";
   String _department = "";
@@ -177,10 +170,7 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
 
- 
               final statusCard = _buildLatestStatusCard();
-
-
 
     return Scaffold(
       drawer: CustomDrawer(),
@@ -229,8 +219,8 @@ class _HomePageState extends State<HomePage> {
               ],
             ),
             // const SizedBox(height: 1),
-            
-            
+
+
 
               if (statusCard != null) ...[
                 Padding(padding: EdgeInsets.all(3)),
@@ -262,7 +252,7 @@ class _HomePageState extends State<HomePage> {
               ],
             ),
 
-            const SizedBox(height: 25),
+            const SizedBox(height: 8),
 
             // Modules Section (Using GridView)
             const Text(
@@ -493,9 +483,9 @@ class _HomePageState extends State<HomePage> {
     child: Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        
+
         Row(
-          
+
           children: [
             Text(
           "Latest Update : ",

@@ -110,7 +110,7 @@ Future<File> _addWatermark(File imageFile, double lat, double long) async {
   final lineHeight = font.lineHeight.toInt();
 
   // 20% of image height
-  final watermarkHeight = (original.height * 0.08).toInt();
+  final watermarkHeight = (original.height * 0.05).toInt();
   final watermarkTop = original.height - watermarkHeight;
 
   // Draw background over bottom 20% of image

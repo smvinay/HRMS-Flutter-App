@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 
+import 'ApplyLeavePage.dart';
+
 class LeaveCal extends StatefulWidget {
   @override
   _LeaveCalState createState() => _LeaveCalState();
@@ -59,11 +61,23 @@ class _LeaveCalState extends State<LeaveCal> {
     double screenWidth = MediaQuery.of(context).size.width;
     return Scaffold(
       appBar: AppBar(
-        title: Text('Leave Calendar'),
+        title: const Text('Leaves'),
         backgroundColor: const Color(0xFF0557a2),
-        titleTextStyle: TextStyle(color: Colors.white ,fontSize: 20),
-        iconTheme: const IconThemeData(color: Colors.white), // 👈 Make back icon white
+        titleTextStyle: const TextStyle(color: Colors.white, fontSize: 20),
+        iconTheme: const IconThemeData(color: Colors.white),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add_circle_outline),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => ApplyLeavePage()),
+              );
+            },
+          ),
+        ],
       ),
+
       body: SingleChildScrollView(
         child: Padding(
           padding: EdgeInsets.all(8),
@@ -93,15 +107,6 @@ class _LeaveCalState extends State<LeaveCal> {
           focusedDay: _focusedDay,
           calendarFormat: _calendarFormat,
           selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-          onDaySelected: (selectedDay, focusedDay) {
-            setState(() {
-              _selectedDay = selectedDay;
-              _focusedDay = focusedDay;
-            });
-            if (selectedDay.isAfter(DateTime.now()) || isSameDay(selectedDay, DateTime.now())) {
-              _showApplyLeaveDialog(selectedDay);
-            }
-          },
           onPageChanged: (focusedDay) => _focusedDay = focusedDay,
           headerStyle: HeaderStyle(
             formatButtonVisible: false,
@@ -216,3 +221,5 @@ class _LeaveCalState extends State<LeaveCal> {
     );
   }
 }
+
+
