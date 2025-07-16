@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -111,6 +112,8 @@ Future<void> _fetchEmployeeDataForMonth(int year, int month) async {
             'status': 'Holiday',
             'checkinImage': null,
             'checkoutImage': null,
+            'first_check_in': null,
+            'last_check_in': null,
             'holidayname': holiday['name'],
           };
         }
@@ -141,6 +144,8 @@ Future<void> _fetchEmployeeDataForMonth(int year, int month) async {
               'status': status,
               'checkinImage': entry['fullfirst_detected_face'] ?? null,
               'checkoutImage': entry['fulllast_detected_face'] ?? null,
+              'first_check_in': entry['first_check_in'] ?? '',
+              'last_check_in': entry['last_check_in'] ?? '',
               'holidayname': null,
             };
           }
@@ -158,6 +163,8 @@ Future<void> _fetchEmployeeDataForMonth(int year, int month) async {
             'status': 'Absent',
             'checkinImage': null,
             'checkoutImage': null,
+            'first_check_in': null,
+            'last_check_in': null,
             'holidayname': null,
           };
         }
@@ -190,131 +197,6 @@ Future<void> _fetchEmployeeDataForMonth(int year, int month) async {
   }
 }
 
-
-
-  // Future<void> _fetchEmployeeDataForMonth(int year, int month) async {
-  //   final prefs = await SharedPreferences.getInstance();
-
-  //   setState(() {
-  //     _userId = prefs.getString('employe_code') ?? "";
-  //     _companyDb = prefs.getString('companyDb') ?? "";
-  //     _deptid = prefs.getString('department') ?? "0";
-  //     _cid = prefs.getString('cid') ?? "0";
-  //     _isLoading = true;
-  //   });
-
-  //   String url =
-  //       "https://app.attendify.ai/template/public/index.php/MobileApi/get_empattendacedata?company_db=$_companyDb&userid=$_userId&year=$year&month=$month";
-
-  //   String url2 =
-  //       "https://app.attendify.ai/template/public/index.php/MobileApi/get_daysholiday?company_db=$_companyDb&cid=$_cid&year=$year&month=$month&deptID=$_deptid";
-
-  //   try {
-  //     final response = await http.get(Uri.parse(url));
-  //     final holidayResponse = await http.get(Uri.parse(url2));
-
-  //     if (response.statusCode == 200 && holidayResponse.statusCode == 200) {
-  //       final data = json.decode(response.body);
-  //       final holidayData = json.decode(holidayResponse.body);
-
-  //       Map<DateTime, Map<String, dynamic>> updatedData = {};
-  //       Set<DateTime> fetchedDates = {};
-  //       Set<DateTime> holidayDates = {};
-
-  //       // Step 1: Handle Holidays First
-  //       if (holidayData['data'] != null) {
-  //         for (var holiday in holidayData['data']) {
-  //           DateTime holidayDate = DateTime.parse(holiday['date']);
-  //           holidayDate =
-  //               DateTime(holidayDate.year, holidayDate.month, holidayDate.day);
-  //           holidayDates.add(holidayDate);
-
-  //           updatedData[holidayDate] = {
-  //             'status': 'Holiday',
-  //             'checkinImage': null,
-  //             'checkoutImage': null,
-  //             'holidayname': holiday['name'],
-  //           };
-  //         }
-  //       }
-
-  //       DateTime now = DateTime.now();
-  //       int daysInMonth = DateTime(year, month + 1, 0).day;
-
-  //       // Step 2: Process Attendance from API
-  //       if (data['data'] != null) {
-  //         for (var entry in data['data']) {
-  //           if (entry['attendance_date'] != null &&
-  //               entry['attendance_date'].toString().isNotEmpty) {
-  //             DateTime fullDate = DateTime.parse(entry['attendance_date']);
-  //             DateTime date =
-  //                 DateTime(fullDate.year, fullDate.month, fullDate.day);
-  //             fetchedDates.add(date);
-
-  //             String status;
-  //             if ((entry['first_check_in'] != null &&
-  //                     entry['first_check_in'].toString().isNotEmpty) &&
-  //                 (entry['last_check_in'] != null &&
-  //                     entry['last_check_in'].toString().isNotEmpty)) {
-  //               status = "Present";
-  //             } else if ((entry['first_check_in'] == null ||
-  //                     entry['first_check_in'].toString().isEmpty) &&
-  //                 (entry['last_check_in'] == null ||
-  //                     entry['last_check_in'].toString().isEmpty)) {
-  //               status = "Absent";
-  //             } else {
-  //               status = "In";
-  //             }
-
-  //             updatedData[date] = {
-  //               'status': status,
-  //               'checkinImage': entry['fullfirst_detected_face'] ?? null,
-  //               'checkoutImage': entry['fulllast_detected_face'] ?? null,
-  //               'holidayname' : null,
-  //             };
-  //           }
-  //         }
-  //       };
-
-  //       // Step 3: Fill remaining past and today as Absent (but don't overwrite Holidays or Attendance)
-  //       for (int i = 1; i <= daysInMonth; i++) {
-  //         DateTime day = DateTime(_focusedDay.year, _focusedDay.month, i);
-
-  //         bool isWeekend = day.weekday == DateTime.saturday ||
-  //             day.weekday == DateTime.sunday;
-  //         bool isPastOrToday = day.isBefore(now) ||
-  //             (day.day == now.day &&
-  //                 day.month == now.month &&
-  //                 day.year == now.year);
-
-
-  //          if (isPastOrToday && !isWeekend && !fetchedDates.contains(day)) {
-  //           updatedData[day] = {
-  //             'status': 'Absent',
-  //             'checkinImage': null,
-  //             'checkoutImage': null,
-  //               'holidayname' : null,
-  //           };
-  //         }
-  //       }
-
-  //       setState(() {
-  //         _attendanceData = updatedData;
-  //         _isLoading = false;
-  //       });
-  //     } else {
-  //       setState(() {
-  //         _isLoading = false;
-  //       });
-  //     }
-  //   } catch (e) {
-  //     print("Error fetching data: $e");
-  //     setState(() {
-  //       _isLoading = false;
-  //     });
-  //   }
-  // }
-
   @override
   Widget build(BuildContext context) {
     double screenWidth = MediaQuery.of(context).size.width;
@@ -342,134 +224,6 @@ Future<void> _fetchEmployeeDataForMonth(int year, int month) async {
       ),
     );
   }
-
-// Widget _buildCalendarCard() {
-//   return Card(
-//     elevation: 4,
-//     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-//     child: Padding(
-//       padding: EdgeInsets.all(8),
-//       child: TableCalendar(
-//         key: ValueKey(_focusedDay), // triggers rebuild when month changes
-//         firstDay: DateTime.utc(2000, 1, 1),                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       
-//         lastDay: DateTime.utc(2100, 12, 31),
-//         focusedDay: _focusedDay,
-//         calendarFormat: _calendarFormat,
-//         selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-//         onDaySelected: (selectedDay, focusedDay) {
-//           setState(() {
-//             _selectedDay = selectedDay;
-//             _focusedDay = focusedDay;
-//           });
-//         },
-//         onPageChanged: (focusedDay) {
-//           setState(() {
-//             _focusedDay = focusedDay;
-//           });
-//           _fetchEmployeeDataForMonth(focusedDay.year, focusedDay.month);
-//         },
-//         headerStyle: HeaderStyle(
-//           formatButtonVisible: false,
-//           titleCentered: true,
-//           titleTextStyle: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-//         ),
-//         daysOfWeekStyle: DaysOfWeekStyle(
-//           weekdayStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-//           weekendStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.grey),
-//         ),
-//         calendarStyle: CalendarStyle(
-//           todayDecoration: BoxDecoration(
-//             border: Border.all(color: Colors.blueAccent),
-//             shape: BoxShape.circle,
-//           ),
-//           selectedDecoration: BoxDecoration(
-//             color: Colors.yellow.shade300,
-//             shape: BoxShape.circle,
-//           ),
-//           selectedTextStyle: TextStyle(color: Colors.black),
-//           todayTextStyle: TextStyle(color: Colors.black),
-//         ),
-//         calendarBuilders: CalendarBuilders(
-//           defaultBuilder: (context, date, _) {
-//             DateTime normalizedDate = DateTime(date.year, date.month, date.day);
-//             String? status = _attendanceData[normalizedDate]?['status'];
-
-//             bool isWeekend = date.weekday == DateTime.saturday || date.weekday == DateTime.sunday;
-
-//             return Container(
-//               margin: EdgeInsets.all(4),
-//               padding: EdgeInsets.all(6),
-//               decoration: BoxDecoration(
-//                 color: status != null
-//                     ? _statusColors[status]?.withOpacity(0.3)
-//                     : Colors.transparent,
-//                 shape: BoxShape.circle,
-//               ),
-//               child: Center(
-//                 child: Text(
-//                   '${date.day}',
-//                   style: TextStyle(
-//                     fontSize: 14,
-//                     fontWeight: FontWeight.bold,
-//                     color: isWeekend
-//                         ? Colors.grey
-//                         : Colors.black,
-//                   ),
-//                 ),
-//               ),
-//             );
-//           },
-//           selectedBuilder: (context, date, _) {
-//             DateTime normalizedDate = DateTime(date.year, date.month, date.day);
-//             String? status = _attendanceData[normalizedDate]?['status'];
-
-//             return Container(
-//               margin: EdgeInsets.all(4),
-//               padding: EdgeInsets.all(6),
-//               decoration: BoxDecoration(
-//                 color: status != null
-//                     ? _statusColors[status]?.withOpacity(0.4)
-//                     : Colors.transparent,
-//                 border: Border.all(color: Colors.blue, width: 2),
-//                 shape: BoxShape.circle,
-//               ),
-//               child: Center(
-//                 child: Text(
-//                   '${date.day}',
-//                   style: TextStyle(
-//                     fontSize: 14,
-//                     fontWeight: FontWeight.bold,
-//                     color: Colors.black,
-//                   ),
-//                 ),
-//               ),
-//             );
-//           },
-//           todayBuilder: (context, date, _) {
-//             return Container(
-//               margin: EdgeInsets.all(4),
-//               padding: EdgeInsets.all(6),
-//               decoration: BoxDecoration(
-//                 color: Colors.yellow.shade200,
-//                 shape: BoxShape.circle,
-//               ),
-//               child: Center(
-//                 child: Text(
-//                   '${date.day}',
-//                   style: TextStyle(
-//                     fontSize: 14,
-//                     fontWeight: FontWeight.bold,
-//                     color: Colors.black,
-//                   ),
-//                 ),
-//               ),
-//             );
-//           },
-//         ),
-//       ),
-//     ),
-//   );
-// }
 
 
   Widget _buildCalendarCard() {
@@ -682,7 +436,20 @@ Future<void> _fetchEmployeeDataForMonth(int year, int month) async {
               dayData['checkoutImage'] != ''
           ? 'https://vision.techkshetra.ai/faceRecognitionEngine/application/uploads/${dayData['checkoutImage']}'
           : defaultImage;
+      final String checkinTimeRaw = dayData['first_check_in'] ?? '';
+      final String checkoutTimeRaw = dayData['last_check_in'] ?? '';
 
+      String formatTime(String rawTime) {
+        try {
+          final dateTime = DateFormat("yyyy-MM-dd HH:mm:ss").parse(rawTime);
+          return DateFormat("hh:mm a").format(dateTime); // Outputs like '09:47 AM'
+        } catch (e) {
+          return '-';
+        }
+      }
+
+      final String checkinTime = formatTime(checkinTimeRaw);
+      final String checkoutTime = formatTime(checkoutTimeRaw);
       return Card(
         elevation: 1,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -693,8 +460,8 @@ Future<void> _fetchEmployeeDataForMonth(int year, int month) async {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _buildNetworkImage("Check-In", checkinFullPath),
-                  _buildNetworkImage("Check-Out", checkoutFullPath),
+                  _buildNetworkImage("Check-In", checkinFullPath, checkinTime),
+                  _buildNetworkImage("Check-Out", checkoutFullPath, checkoutTime),
                 ],
               ),
             ],
@@ -730,10 +497,12 @@ final String holidayname = dayData['holidayname'] != null && dayData['holidaynam
     }
   }
 
-  Widget _buildNetworkImage(String title, String imageUrl) {
+  Widget _buildNetworkImage(String title, String imageUrl, String time) {
+    print(time);
     return Column(
       children: [
-        Text(title,
+        Text('$title : $time',
+            textAlign: TextAlign.center,
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
         SizedBox(height: 8),
         Container(
@@ -742,14 +511,22 @@ final String holidayname = dayData['holidayname'] != null && dayData['holidaynam
           padding: EdgeInsets.all(3),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
-            image: DecorationImage(
+            image: imageUrl.isNotEmpty
+                ? DecorationImage(
               image: NetworkImage(imageUrl),
               fit: BoxFit.cover,
-            ),
+            )
+                : null,
+            // color: imageUrl.isEmpty ? Colors.grey.shade300 : null,
           ),
+          child: imageUrl.isEmpty
+              ? null
+              : null,
         ),
       ],
     );
   }
+
+
 
 }
