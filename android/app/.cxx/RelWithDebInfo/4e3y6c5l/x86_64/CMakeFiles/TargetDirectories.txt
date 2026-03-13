@@ -1,0 +1,2 @@
+/home/vinay/Desktop/my_flutter_app/android/app/.cxx/RelWithDebInfo/4e3y6c5l/x86_64/CMakeFiles/edit_cache.dir
+/home/vinay/Desktop/my_flutter_app/android/app/.cxx/RelWithDebInfo/4e3y6c5l/x86_64/CMakeFiles/rebuild_cache.dir
