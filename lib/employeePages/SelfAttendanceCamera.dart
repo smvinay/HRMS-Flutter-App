@@ -12,11 +12,13 @@ import 'package:another_flushbar/flushbar.dart';
 
 
 class SelfAttendanceCamera extends StatefulWidget {
-    final String? attStatus; // Declare variable
+  final String? attStatus;
+  final VoidCallback? onSuccess;   // ✅ callback
 
- const SelfAttendanceCamera({
+  const SelfAttendanceCamera({
     super.key,
-    this.attStatus, // Accept named parameter
+    this.attStatus,
+    this.onSuccess,
   });
 
   @override
@@ -29,6 +31,8 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
   late String attendanceStatus;
   String userGeofetch = 'enable'; // From backend
   bool userInLocation = true; // Update based on actual geofence logic
+  bool _isLoaderShowing = false;
+  bool _isUploading = false;
 
   @override
   void initState() {
@@ -54,7 +58,7 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
 
   Future<void> captureImage() async {
     DateTime now = DateTime.now();
-    DateTime selectedDate = now; // Replace this with actual selected date
+    DateTime selectedDate = now;
 
     if (now.isBefore(selectedDate)) {
       _showAlert('You cannot take self attendance for a future date.');
@@ -73,19 +77,24 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
       }
     }
 
-    final XFile? pickedImage = await _picker.pickImage(source: ImageSource.camera);
+    final XFile? pickedImage = await _picker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 100,
+      maxWidth: 1920,
+      maxHeight: 1080,
+      preferredCameraDevice: CameraDevice.front,
+    );
+
     if (pickedImage != null) {
       File imageFile = File(pickedImage.path);
 
-      // Get current location
       Position position = await _determinePosition();
-       latitude = position.latitude;
-       longitude = position.longitude;
+      latitude = position.latitude;
+      longitude = position.longitude;
 
-      // Add watermark
+
       File watermarkedImage = await _addWatermark(imageFile, latitude, longitude);
-
-      // Upload
+      _showLoading();
       await _uploadData(
         watermarkedImage,
         latitude,
@@ -152,23 +161,29 @@ Future<File> _addWatermark(File imageFile, double lat, double long) async {
   return watermarkedImage;
 }
   Future<void> _uploadData(
-    File imageFile,
-    double latitude,
-    double longitude,
-    String captureRange,
-  ) async {
-      _showLoading(); // show loading indicator
+      File imageFile,
+      double latitude,
+      double longitude,
+      String captureRange,
+      ) async {
+
+
+
     final now = DateTime.now();
     final timestamp = DateFormat('yyyy-MM-dd HH:mm:ss').format(now);
+
     final prefs = await SharedPreferences.getInstance();
     final apiKey = prefs.getString('apiKey') ?? "";
     final companyDb = prefs.getString('companyDb') ?? "";
     final collectionId = prefs.getString('unique_code') ?? "";
     final empCode = prefs.getString('employe_code') ?? "";
+
     var request = http.MultipartRequest(
       'POST',
-      Uri.parse('https://vision.techkshetra.ai/faceRecognitionEngine/index.php/Auth/authenticate_recapture_self'),
+      Uri.parse(
+          'https://vision.techkshetra.ai/faceRecognitionEngine/index.php/Auth/authenticate_recapture_self'),
     );
+
     request.headers.addAll({
       'apiKey': apiKey,
       'companyDb': companyDb,
@@ -182,35 +197,110 @@ Future<File> _addWatermark(File imageFile, double lat, double long) async {
     request.fields['employe_code'] = empCode;
     request.fields['capture_range'] = captureRange;
 
-    request.files.add(await http.MultipartFile.fromPath('image', imageFile.path));
+    request.files.add(
+      await http.MultipartFile.fromPath('image', imageFile.path),
+    );
 
     try {
       var response = await request.send();
+
       final responseBody = await response.stream.bytesToString();
-      debugPrint("API Response: $responseBody");
+      debugPrint("API RESPONSE: $responseBody");
 
-      if (response.statusCode == 200 && responseBody.isNotEmpty ) {
-      final Map<String, dynamic> result = jsonDecode(responseBody);
-      if (result['type'] == 'attendance' && result['status'] == 'success') {
-        // _showToast("Attendance marked successfully");
-        _showflashbar("Attendance marked successfully", Colors.green.shade300);
+      if (response.statusCode == 200 && responseBody.isNotEmpty) {
 
-      } else if (result['type'] == 'errorface') {
-        _showflashbar( "Face mismatch. Please try again.", Colors.red.shade300);
-      } else if (result['type'] == 'nullface') {
-        _showflashbar("No face detected. Please try again.", Colors.red.shade300);
+        dynamic result = jsonDecode(responseBody);
+
+        /// If API returns string JSON
+        if (result is String) {
+          result = jsonDecode(result);
+        }
+
+        final type = result['type'];
+        final status = result['status'];
+
+        if (type == "attendance" && status == "success") {
+
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+
+            if (mounted) {
+              _hideLoading();
+
+              _showflashbar(
+                "Attendance marked successfully",
+                Colors.green.shade300,
+              );
+
+              widget.onSuccess?.call();
+            }
+
+          });
+
+        } else if (type == "nullface") {
+
+          _hideLoading();
+
+          Future.delayed(const Duration(milliseconds: 200), () {
+            if (mounted) {
+              _showflashbar(
+                "Employee face not recognized, please retry again.",
+                Colors.red.shade300,
+              );
+            }
+          });
+
+        } else if (type == "errorface") {
+
+          _hideLoading();
+
+          Future.delayed(const Duration(milliseconds: 200), () {
+            if (mounted) {
+              _showflashbar(
+                "Employee face not matched, please retry again.",
+                Colors.red.shade300,
+              );
+            }
+          });
+
+        } else {
+
+          _hideLoading();
+
+          Future.delayed(const Duration(milliseconds: 200), () {
+            if (mounted) {
+              _showflashbar(
+                "Face not matching, please retry again.",
+                Colors.red.shade300,
+              );
+            }
+          });
+        }
+
+        /// Refresh Home API (same as JS refreshHome())
+        // _loadUserData();
+
       } else {
-    _showflashbar("Unexpected response from server.", Colors.red.shade300);
+        _hideLoading();
+        _showflashbar(
+          "Upload failed. Status: ${response.statusCode}",
+          Colors.red.shade300,
+        );
       }
-    } else {
-      // _showToast("Upload failed. Status Code: ${response.statusCode}");
-        _showflashbar("Somthing went wrong, please try again", Colors.red.shade300);
+
+    } catch (e) {
+
+      debugPrint("UPLOAD ERROR: $e");
+      _hideLoading();
+      _showflashbar(
+        "Upload failed. Please try again.",
+        Colors.red.shade300,
+      );
+
+    } finally {
+
+      /// ALWAYS HIDE LOADER
+      _hideLoading();
     }
-  } catch (e) {
-      _showflashbar("Upload failed: $e", Colors.red.shade300);
-  } finally {
-    _hideLoading(); // always hide loading, even on error
-  }
   }
 
   Future<Position> _determinePosition() async {
@@ -227,51 +317,70 @@ Future<File> _addWatermark(File imageFile, double lat, double long) async {
   }
 
   void _showAlert(String message) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text("Notice"),
-        content: Text(message),
-        actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text("OK"))],
-      ),
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text("Notice"),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text("OK"),
+            )
+          ],
+        ),
+      );
+    });
   }
+
 
   @override
   Widget build(BuildContext context) {
     return Center(
       child: IconButton(
-        icon: Icon(Icons.camera_alt, size: 30, color: Colors.blue),
+        icon: Icon(Icons.camera_alt, size: 45, color: Colors.white),
         onPressed: captureImage,
       ),
     );
   }
 
-
   void _showLoading() {
-  showDialog(
-    context: context,
-    barrierDismissible: false,
-    builder: (_) => const Center(child: CircularProgressIndicator()),
-  );
-}
+    if (_isLoaderShowing) return;
 
-void _hideLoading() {
-  Navigator.of(context, rootNavigator: true).pop();
-}
+    _isLoaderShowing = true;
 
-void _showflashbar(String  message , Color color) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      useRootNavigator: true,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+  }
 
-  Flushbar(
-    message: message,
-    duration: Duration(seconds: 2),
-    backgroundColor: color,
-    borderRadius: BorderRadius.circular(8),
-    margin: EdgeInsets.all(12),
-    flushbarPosition: FlushbarPosition.TOP,
-  ).show(context);
+  void _hideLoading() {
+    if (!_isLoaderShowing) return;
 
-}
+    if (mounted) {
+      Navigator.of(context, rootNavigator: true).pop();
+    }
+
+    _isLoaderShowing = false;
+  }
+
+  void _showflashbar(String message, Color color) {
+    Flushbar(
+      message: message,
+      duration: const Duration(seconds: 2),
+      backgroundColor: color,
+      borderRadius: BorderRadius.circular(8),
+      margin: const EdgeInsets.all(12),
+      flushbarPosition: FlushbarPosition.TOP,
+    ).show(context);
+  }
+
 
 
 }

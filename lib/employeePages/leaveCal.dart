@@ -97,6 +97,7 @@ class _LeaveCalState extends State<LeaveCal> {
 
   Widget _buildCalendarCard() {
     return Card(
+      color:Colors.white,
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
@@ -205,6 +206,7 @@ class _LeaveCalState extends State<LeaveCal> {
       width: screenWidth,
       margin: EdgeInsets.only(bottom: 8),
       child: Card(
+        color:Colors.white,
         elevation: 4,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         child: Padding(

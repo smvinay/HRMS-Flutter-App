@@ -6,6 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:another_flushbar/flushbar.dart';
 
+import 'visitorPages/VisitorsFooter.dart';
+
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -15,14 +17,15 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-final TextEditingController _usernameController = TextEditingController(text: 'vinay.s@techkshetrainfo.com');
-final TextEditingController _companyCodeController = TextEditingController(text: 'TKIS');
-final TextEditingController _passwordController = TextEditingController(text: 'Techk@123');
+final TextEditingController _usernameController = TextEditingController();
+final TextEditingController _companyCodeController = TextEditingController();
+final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _captchaController = TextEditingController();
   bool _isLoading = false;
-  
-  String _captchaValue =
+bool _obscurePassword = true;
+String _captchaValue =
        "1234"; // Dummy CAPTCHA value (should be fetched from API)
+String? cachedCompanyCode;
 
 Future<void> _login(BuildContext context) async {
   // Check Internet Connection
@@ -36,10 +39,12 @@ Future<void> _login(BuildContext context) async {
 
   final SharedPreferences prefs = await SharedPreferences.getInstance();
 
-  String companyCode = prefs.getString('companyCode') ?? "TKIS";
-  String username = _usernameController.text.trim() ?? 'vinay.s@techkshetrainfo.com';
-  String password = _passwordController.text.trim() ?? 'Techk@123';
-  String loginCompCode = companyCode.isNotEmpty ? companyCode : _companyCodeController.text.trim();
+  String companyCode = prefs.getString('companyCode') ?? '';
+  String username = _usernameController.text.trim() ?? '';
+  String password = _passwordController.text.trim() ?? '';
+  String loginCompCode = companyCode.isNotEmpty
+      ? companyCode
+      : _companyCodeController.text.trim();
 
   // Validation
   if (username.isEmpty && password.isEmpty) {
@@ -60,7 +65,7 @@ Future<void> _login(BuildContext context) async {
   // Save company code
   await prefs.setString('companyCode', loginCompCode);
   setState(() => _isLoading = true);
-  var url = Uri.parse("https://app.attendify.ai/template/public/index.php/Login_api/verify_loginMobile");
+  var url = Uri.parse("https://hrms.attendify.ai/index.php/Login_api/verify_loginMobile");
 
   try {
     var response = await http.post(url, body: {
@@ -112,18 +117,12 @@ Future<void> _login(BuildContext context) async {
       // Navigate based on user level
       if (data['level_id'].toString() == "6") {
         Navigator.pushReplacementNamed(context, '/home');
-      } else {
-        Navigator.pushReplacementNamed(context, '/visitorForm');
+      }else if (data['level_id'].toString() == "4") {
+        Navigator.pushReplacementNamed(context, '/HrDashboard');
+      }  else {
+        Navigator.pushReplacementNamed(context, '/VisitorsFooter');
       }
 
-      Flushbar(
-        message: "Login Successful",
-        duration: Duration(seconds: 2),
-        backgroundColor: Colors.green.shade300,
-        borderRadius: BorderRadius.circular(8),
-        margin: EdgeInsets.all(11),
-        flushbarPosition: FlushbarPosition.TOP,
-      ).show(context);
     }
   } catch (e) {
     // print("Error: $e");
@@ -137,7 +136,6 @@ Future<void> _login(BuildContext context) async {
       flushbarPosition: FlushbarPosition.TOP,
     ).show(context);
 
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
   }
 
   setState(() => _isLoading = false);
@@ -146,9 +144,16 @@ Future<void> _login(BuildContext context) async {
 @override
 void initState() {
   super.initState();
-  _refreshCaptcha(); // Generate a new CAPTCHA when the page loads
+  _refreshCaptcha();
+  _loadCompanyCode();
 }
 
+Future<void> _loadCompanyCode() async {
+  final prefs = await SharedPreferences.getInstance();
+  setState(() {
+    cachedCompanyCode = prefs.getString('companyCode');
+  });
+}
   
 void _refreshCaptcha() {
   const String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -159,139 +164,144 @@ void _refreshCaptcha() {
   });
 }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          image: DecorationImage(
-            image:
-                AssetImage("assets/bk_img.png"), // Ensure the image exists
-            fit: BoxFit.cover,
-          ),
+@override
+Widget build(BuildContext context) {
+
+  final bool isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom != 0;
+
+  return Scaffold(
+    body: Container(
+      decoration: const BoxDecoration(
+        image: DecorationImage(
+          image: AssetImage("assets/bk_img.png"),
+          fit: BoxFit.cover,
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Login Title with Logo
-              Row(
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(30),
+        child: Column(
+          children: [
+
+            /// FORM AREA
+            Expanded(
+              child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Image.asset("assets/hrms_logo.png",
-                      height: 50), // Ensure logo.png exists in assets
-                  const SizedBox(width: 8),
-                ],
-              ),
-              const SizedBox(height: 10),
-              // Subtitle Text
-              const Text(
-                "Your Intelligent Attendance Partner",
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF2C2C2C), // Dark gray color
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 3),
 
-              // Username Input
-              TextField(
-                controller: _companyCodeController,
-                decoration: const InputDecoration(
-                  labelText: 'Company Code',
-                  prefixIcon: Icon(Icons.code),
-                  border: UnderlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 3),
+                  /// LOGO
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Image.asset("assets/hrms_logo.png", height: 50),
+                    ],
+                  ),
 
-              // Username Input
-              TextField(
-                controller: _usernameController,
-                decoration: const InputDecoration(
-                  labelText: 'Username',
-                  prefixIcon: Icon(Icons.person),
-                  border: UnderlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 3),
+                  const SizedBox(height: 10),
 
-              // Password Input
-              TextField(
-                controller: _passwordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Password',
-                  prefixIcon: Icon(Icons.lock),
-                  border: UnderlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 3),
+                  const Text(
+                    "Your Intelligent Attendance Partner",
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF2C2C2C),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
 
-              // CAPTCHA Input with Refresh Button
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _captchaController,
+                  const SizedBox(height: 25),
+
+                  /// COMPANY CODE
+                  if (cachedCompanyCode == null || cachedCompanyCode!.isEmpty)
+                    TextField(
+                      controller: _companyCodeController,
                       decoration: const InputDecoration(
-                        labelText: 'Enter CAPTCHA',
-                        prefixIcon: Icon(Icons.verified_user),
+                        labelText: 'Company Code',
+                        prefixIcon: Icon(Icons.code),
                         border: UnderlineInputBorder(),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                    ),
-                    child: Text(
-                      _captchaValue,
-                      style: const TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.bold),
+
+                  const SizedBox(height: 10),
+
+                  /// USERNAME
+                  TextField(
+                    controller: _usernameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Username',
+                      prefixIcon: Icon(Icons.person),
+                      border: UnderlineInputBorder(),
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.refresh, color: Color(0xFF0557a2)),
-                    onPressed: _refreshCaptcha,
+
+                  const SizedBox(height: 10),
+
+                  /// PASSWORD
+                  TextField(
+                    controller: _passwordController,
+                    obscureText: _obscurePassword,
+                    decoration: InputDecoration(
+                      labelText: 'Password',
+                      prefixIcon: const Icon(Icons.lock),
+                      border: const UnderlineInputBorder(),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  /// LOGIN BUTTON
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : () => _login(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0557a2),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: _isLoading
+                          ? const Text("Logging in...")
+                          : const Text("Login"),
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: 5),
-
-              // Login Button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : () => _login(context),  // Wrap inside a function
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0557a2), // Button color
-                    foregroundColor: Colors.white, // Text color
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 8), // Button height
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                 child: _isLoading
-                ? const Text(
-                    "Logging in...",
-                    style: TextStyle(color: Colors.white, fontSize: 16),
-                  )
-                : const Text("Login"),
-
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
-    );
-  }
+    ),
+
+    /// FOOTER (Hides when keyboard opens)
+    bottomNavigationBar: isKeyboardOpen
+        ? null
+        : Container(
+      width: double.infinity,
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: const Text(
+        "Powered by Techkshetra Info Solutions Pvt. Ltd.",
+        style: TextStyle(
+          color: Colors.black,
+          fontSize: 13,
+        ),
+        textAlign: TextAlign.center,
+      ),
+    ),
+  );
+}
 }

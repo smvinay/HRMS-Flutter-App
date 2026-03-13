@@ -2,7 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'login_page.dart';
+import '../login_page.dart';
 import 'home_page.dart';
 
 class CustomDrawer extends StatefulWidget {
@@ -53,7 +53,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
               child: ClipOval(
                 child: _userProfile.isNotEmpty
                     ? Image.network(
-                        "https://app.attendify.ai/template/public/photos/$_userProfile",
+                        "https://hrms.attendify.ai/photos/$_userProfile",
                         width: 60, // Set size of image
                         height: 60,
                         fit: BoxFit.cover,
@@ -71,12 +71,26 @@ class _CustomDrawerState extends State<CustomDrawer> {
           _buildDrawerItem(Icons.home, "Home", () {
             Navigator.pushReplacementNamed(context, '/home');
           }),
+
+          _buildDrawerItem(Icons.calendar_month, "Attendance", () {
+            Navigator.pushNamed(context, '/emp_attendance_cal');
+          }),
+
+          // _buildDrawerItem(Icons.sick_outlined, "Leave", () {
+          //   Navigator.pushReplacementNamed(context, '/emp_leave_cal');
+          // }),
+
           _buildDrawerItem(Icons.person, "Profile", () {
             Navigator.pushNamed(context, '/profile');
           }),
-          _buildDrawerItem(Icons.settings, "Settings", () {
-            Navigator.pushNamed(context, '/settings');
-          }),
+
+          // _buildDrawerItem(Icons.settings, "Settings", () {
+          //   Navigator.pushNamed(context, '/settings');
+          // }),
+
+          const Spacer(),
+          const Divider(),
+
           _buildDrawerItem(Icons.logout, "Logout", () {
             _showLogoutDialog(context);
           }),
@@ -94,26 +108,41 @@ class _CustomDrawerState extends State<CustomDrawer> {
     );
   }
 
-  // Logout Confirmation Dialog
   void _showLogoutDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
+      builder: (context) {
         return AlertDialog(
           title: const Text("Logout"),
           content: const Text("Are you sure you want to log out?"),
           actions: [
+
             TextButton(
               child: const Text("Cancel"),
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () => Navigator.pop(context),
             ),
+
             TextButton(
               child: const Text("Logout"),
               onPressed: () async {
-                final SharedPreferences prefs = await SharedPreferences.getInstance();
-                await prefs.clear(); // Clear stored data
-                Navigator.of(context).pop(); // Close the dialog
-                Navigator.pushReplacementNamed(context, '/login'); // Navigate to login
+
+                final prefs = await SharedPreferences.getInstance();
+
+                /// Save companyCode before clearing
+                String? companyCode = prefs.getString('companyCode');
+
+                /// Clear all data
+                await prefs.clear();
+
+                /// Restore companyCode
+                if (companyCode != null) {
+                  await prefs.setString('companyCode', companyCode);
+                }
+
+                Navigator.pop(context);
+
+                Navigator.pushReplacementNamed(context, '/login');
+
               },
             ),
           ],

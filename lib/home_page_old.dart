@@ -5,22 +5,22 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
-import 'custom_drawer.dart';
-import 'header.dart';
-import 'timeSheetCal.dart';
-import 'leaveCal.dart';
-import 'AttendanceCal.dart';
+import 'employeePages/emp_drawer.dart';
+import 'employeePages/header.dart';
+import 'employeePages/timeSheetCal.dart';
+import 'employeePages/leaveCal.dart';
+import 'employeePages/AttendanceCal.dart';
 import 'package:intl/intl.dart';
-import 'SelfAttendanceCamera.dart';
+import 'employeePages/SelfAttendanceCamera.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
   @override
   _HomePageState createState() => _HomePageState();
-
 }
+
 class _HomePageState extends State<HomePage> {
-    final GlobalKey<SelfAttendanceCameraState> _cameraKey = GlobalKey();
+  final GlobalKey<SelfAttendanceCameraState> _cameraKey = GlobalKey();
   String attendanceStatus = "checkin";
   String _username = "";
   String _department = "";
@@ -33,28 +33,28 @@ class _HomePageState extends State<HomePage> {
   String _holidayCount = "0";
   String _checkInTime = "";
   String _checkOutTime = "";
+  String _checkInImage = "";
+  String _checkOutImage = "";
+  String _latestImage = "";
   String _latestCheckInTime = '';
   String _currentDay = '';
 
   @override
   void initState() {
-      _currentDay = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    _currentDay = DateFormat('yyyy-MM-dd').format(DateTime.now());
 
     super.initState();
     _loadUserData();
   }
-
 
   Future<void> _loadUserData() async {
     final prefs = await SharedPreferences.getInstance();
     String selectedYear = DateTime.now().year.toString();
     String selectedMonth = DateTime.now().month.toString();
 
-
     setState(() {
       _userId = prefs.getString('user_id') ?? "";
-      _username =
-          "${prefs.getString('username') ?? ''}" .trim();
+      _username = "${prefs.getString('username') ?? ''}".trim();
       _department = prefs.getString('department_name') ?? "Department";
     });
 
@@ -70,7 +70,7 @@ class _HomePageState extends State<HomePage> {
     String cid = prefs.getString('cid') ?? "";
     String deptID = prefs.getString('department') ?? "";
     String url =
-        "https://app.attendify.ai/template/public/index.php/MobileApi/home?company_db=$companyDb&userid=$userId&cid=$cid&deptID=$deptID";
+        "https://hrms.attendify.ai/index.php/MobileApi/home?company_db=$companyDb&userid=$userId&cid=$cid&deptID=$deptID";
 
     try {
       final response = await http.get(Uri.parse(url));
@@ -91,8 +91,11 @@ class _HomePageState extends State<HomePage> {
           // _checkOutTime = _formatTime(data['checkoutTime']?.toString());
           // _latestCheckInTime = _formatTime(data['latestCheckin']?.toString());
 
-           _checkInTime = data['checkinTime']  ?? '';
+          _checkInTime = data['checkinTime'] ?? '';
           _checkOutTime = data['checkoutTime'] ?? '';
+          _checkInImage = data['checkInImage'] ?? '';
+          _checkOutImage = data['checkOutImage'] ?? '';
+          _latestImage = data['latestImage'] ?? '';
           _latestCheckInTime = data['latestCheckin'] ?? '';
         });
       } else {
@@ -120,7 +123,6 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-
   Future<Position> _determinePosition() async {
     bool serviceEnabled;
     LocationPermission permission;
@@ -146,31 +148,10 @@ class _HomePageState extends State<HomePage> {
         desiredAccuracy: LocationAccuracy.high);
   }
 
-  Future<void> _uploadData(
-      File image, double latitude, double longitude) async {
-    try {
-      var request = http.MultipartRequest(
-          'POST', Uri.parse('https://your-api-url.com/upload'));
-      request.files.add(await http.MultipartFile.fromPath('image', image.path));
-      request.fields['latitude'] = latitude.toString();
-      request.fields['longitude'] = longitude.toString();
-
-      var response = await request.send();
-
-      if (response.statusCode == 200) {
-        print('Upload Successful');
-      } else {
-        print('Upload Failed');
-      }
-    } catch (e) {
-      print("Error uploading data: $e");
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
-
-              final statusCard = _buildLatestStatusCard();
+    final statusCard = _buildLatestStatusCard();
 
     return Scaffold(
       drawer: CustomDrawer(),
@@ -199,11 +180,10 @@ class _HomePageState extends State<HomePage> {
                   ],
                 ),
                 // ✅ Call the SelfAttendanceCamera with key
-                  SelfAttendanceCamera(
-                    key: _cameraKey,
-                    attStatus: attendanceStatus, // Pass using named parameter
-                  ),
-
+                SelfAttendanceCamera(
+                  key: _cameraKey,
+                  attStatus: attendanceStatus, // Pass using named parameter
+                ),
               ],
             ),
             const SizedBox(height: 20),
@@ -212,21 +192,37 @@ class _HomePageState extends State<HomePage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Padding(padding: EdgeInsets.all(3)),
-                Flexible(child: _buildTimeCard("IN", _formatTime(_checkInTime))),
-                Padding(padding: EdgeInsets.all(3)),
-                Flexible(child: _buildTimeCard("OUT", _formatTime(_checkOutTime))),
+                Flexible(
+                  child: _buildTimeCard(
+                    "IN",
+                    _formatTime(_checkInTime),
+                    _checkInImage,
+                    _checkInImage != null && _checkInImage.isNotEmpty
+                        ? () => _showImagePopup(context, _checkInImage)
+                        : null,
+                  ),
+                ),
+                const Padding(padding: EdgeInsets.all(3)),
+                Flexible(
+                  child: _buildTimeCard(
+                    "OUT",
+                    _formatTime(_checkOutTime),
+                    _checkOutImage,
+                    _checkOutImage != null && _checkOutImage.isNotEmpty
+                        ? () => _showImagePopup(context, _checkOutImage)
+                        : null,
+                  ),
+                ),
               ],
             ),
+
             // const SizedBox(height: 1),
 
-
-
-              if (statusCard != null) ...[
-                Padding(padding: EdgeInsets.all(3)),
-                statusCard,
-              ],
-                const SizedBox(height: 15),
+            if (statusCard != null) ...[
+              Padding(padding: EdgeInsets.all(3)),
+              statusCard,
+            ],
+            const SizedBox(height: 15),
 
             // Summary Section (Using GridView)
             const Text(
@@ -269,14 +265,14 @@ class _HomePageState extends State<HomePage> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               children: [
-                _buildModuleCard("Time Sheet", Icons.access_time, () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) =>
-                            TimesheetCal()), // Navigate to TimesheetCal
-                  );
-                }),
+                // _buildModuleCard("Time Sheet", Icons.access_time, () {
+                //   Navigator.push(
+                //     context,
+                //     MaterialPageRoute(
+                //         builder: (context) =>
+                //             TimesheetCal()), // Navigate to TimesheetCal
+                //   );
+                // }),
                 _buildModuleCard("Leaves", Icons.event_available, () {
                   Navigator.push(
                     context,
@@ -293,10 +289,10 @@ class _HomePageState extends State<HomePage> {
                             AttendanceCal()), // Navigate to TimesheetCal
                   );
                 }),
-                _buildModuleCard("Documents", Icons.description, () {}),
-                _buildModuleCard(
-                    "Payroll", Icons.account_balance_wallet, () {}),
-                _buildModuleCard("Holidays", Icons.card_travel, () {}),
+                // _buildModuleCard("Documents", Icons.description, () {}),
+                // _buildModuleCard(
+                //     "Payroll", Icons.account_balance_wallet, () {}),
+                // _buildModuleCard("Holidays", Icons.card_travel, () {}),
               ],
             ),
           ],
@@ -342,50 +338,107 @@ class _HomePageState extends State<HomePage> {
   }
 
   // Summary Cards
-  Widget _buildTimeCard(String label, String time) {
-    IconData icon =
-        label == "IN" ? Icons.login : Icons.logout; // Dynamic icon selection
+  Widget _buildTimeCard(
+      String label, String time, String image, VoidCallback? onTap) {
+    const baseUrl =
+        'https://hrms.attendify.ai/detectedImages/';
+    final imageUrl = image.isNotEmpty ? '$baseUrl$image' : null;
+    IconData icon = label == "IN" ? Icons.login : Icons.logout;
 
     return TweenAnimationBuilder<double>(
       duration: const Duration(milliseconds: 600),
       curve: Curves.easeInOut,
-      tween: Tween<double>(begin: 0.8, end: 1.0), // Smooth pop-in effect
+      tween: Tween<double>(begin: 0.8, end: 1.0),
       builder: (context, value, child) {
-        return Transform.scale(
-          scale: value,
-          child: Opacity(
-            opacity: value,
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                boxShadow: [
-                  BoxShadow(
-                      color: Colors.black12, blurRadius: 4, spreadRadius: 1)
-                ],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Icon(icon,
-                          color: label == "IN" ? Colors.green : Colors.red,
-                          size: 20), // IN: Green, OUT: Red
-                      const SizedBox(width: 5),
-                      Text(label,
-                          style: const TextStyle(
-                              fontSize: 15, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                  Text(time, style: const TextStyle(fontSize: 14)),
-                ],
+        return GestureDetector(
+          onTap: onTap,
+          child: Transform.scale(
+            scale: value,
+            child: Opacity(
+              opacity: value,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: [
+                    BoxShadow(
+                        color: Colors.black12, blurRadius: 4, spreadRadius: 1)
+                  ],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(icon,
+                            color: label == "IN" ? Colors.green : Colors.red,
+                            size: 20),
+                        const SizedBox(width: 5),
+                        Text(label,
+                            style: const TextStyle(
+                                fontSize: 15, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                    Text(time, style: const TextStyle(fontSize: 14)),
+                  ],
+                ),
               ),
             ),
           ),
         );
       },
+    );
+  }
+
+  void _showImagePopup(BuildContext context, String image) {
+    final imageUrl =
+        'https://hrms.attendify.ai/detectedImages/$image';
+
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8), // Reduced border radius
+        ),
+        child: Container(
+          height: 500, // Fixed height
+          width: MediaQuery.of(context).size.width *
+              0.8, // Optional: make it responsive
+          padding: const EdgeInsets.all(10),
+          child: Column(
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: Image.network(
+                    imageUrl,
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    errorBuilder: (ctx, err, _) =>
+                        const Center(child: Text("Failed to load image")),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text("Close",
+                      style: TextStyle(color: Colors.black)),
+                ),
+              )
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -422,97 +475,101 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget? _buildLatestStatusCard() {
-  // Parse the time strings
-  final checkInDT = _checkInTime.isNotEmpty ? DateTime.tryParse(_checkInTime) : null;
-  final checkOutDT = _checkOutTime.isNotEmpty ? DateTime.tryParse(_checkOutTime) : null;
-  final latestDT = _latestCheckInTime.isNotEmpty ? DateTime.tryParse(_latestCheckInTime) : null;
-  // print("_checkInTime: $_checkInTime");
-  // print("_checkOutTime: $_checkOutTime");
-  // print("_latestCheckInTime: $_latestCheckInTime");
+    // Parse the time strings
+    final checkInDT =
+        _checkInTime.isNotEmpty ? DateTime.tryParse(_checkInTime) : null;
+    final checkOutDT =
+        _checkOutTime.isNotEmpty ? DateTime.tryParse(_checkOutTime) : null;
+    final latestDT = _latestCheckInTime.isNotEmpty
+        ? DateTime.tryParse(_latestCheckInTime)
+        : null;
 
-  // Determine attendance status based on values
-  if (checkInDT == null && checkOutDT == null && latestDT == null) {
-    attendanceStatus = "checkin";
-    return null;
-  } else if (checkInDT != null && checkOutDT == null) {
-    attendanceStatus = "checkout";
-  } else if (checkInDT != null && checkOutDT != null) {
-    attendanceStatus = "checkout";
-  }
+    final ontaplatestimage = _latestImage.isNotEmpty
+        ? () => _showImagePopup(context, _latestImage)
+        : null;
+    // print("_checkInTime: $_checkInTime");
+    // print("_checkOutTime: $_checkOutTime");
+    // print("_latestCheckInTime: $_latestCheckInTime");
 
- // Only show card if checkIn and latestCheckIn are available
-  bool showLatestStatusCard = checkInDT != null && latestDT != null;
-  if (!showLatestStatusCard) return null;
+    // Determine attendance status based on values
+    if (checkInDT == null && checkOutDT == null && latestDT == null) {
+      attendanceStatus = "checkin";
+      return null;
+    } else if (checkInDT != null && checkOutDT == null) {
+      attendanceStatus = "checkout";
+    } else if (checkInDT != null && checkOutDT != null) {
+      attendanceStatus = "checkout";
+    }
 
-  // Determine IN/OUT status
-  String statusLabel;
-  IconData statusIcon;
-  Color statusColor;
-  final sttime;
+    // Only show card if checkIn and latestCheckIn are available
+    bool showLatestStatusCard = checkInDT != null && latestDT != null;
+    if (!showLatestStatusCard) return null;
 
+    // Determine IN/OUT status
+    String statusLabel;
+    IconData statusIcon;
+    Color statusColor;
+    final sttime;
 
-  if(checkOutDT != null ){
+    if (checkOutDT != null) {
+      if (latestDT.isBefore(checkOutDT)) {
+        statusLabel = "OUT";
+        statusIcon = Icons.logout;
+        statusColor = Colors.red.shade100;
+        sttime = _checkOutTime;
+      } else {
+        statusLabel = "IN";
+        statusIcon = Icons.login;
+        statusColor = Colors.green.shade100;
+        sttime = _latestCheckInTime;
+      }
+    } else {
+      statusLabel = "IN";
+      statusIcon = Icons.login;
+      statusColor = Colors.green.shade100;
+      sttime = _latestCheckInTime;
+    }
 
-  if (latestDT.isBefore(checkOutDT) ) {
-    statusLabel = "OUT";
-    statusIcon = Icons.logout;
-    statusColor = Colors.red.shade100;
-    sttime = _checkOutTime;
-
-  } else {
-    statusLabel = "IN";
-    statusIcon = Icons.login;
-    statusColor = Colors.green.shade100;
-    sttime = _latestCheckInTime;
-
-  }
-  }else {
-    statusLabel = "IN";
-    statusIcon = Icons.login;
-    statusColor = Colors.green.shade100;
-    sttime = _latestCheckInTime;
-  }
-
-
-  return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-    decoration: BoxDecoration(
-      color: statusColor,
-      borderRadius: BorderRadius.circular(8),
-    ),
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-
-        Row(
-
-          children: [
-            Text(
-          "Latest Update : ",
-          // DateFormat('HH:mm a').format(latestDT), // show only time part
-          style: const TextStyle(fontSize: 13 , color:Color(0xFF5D6C5D)),
+    return GestureDetector(
+      onTap: ontaplatestimage, // triggers the image popup
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: statusColor,
+          borderRadius: BorderRadius.circular(8),
         ),
-            Icon(
-              statusIcon,
-              color: statusLabel == "IN" ? Colors.green : Colors.red,
-              size: 20,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Text(
+                  "Latest Update : ",
+                  // DateFormat('HH:mm a').format(latestDT), // show only time part
+                  style:
+                      const TextStyle(fontSize: 13, color: Color(0xFF5D6C5D)),
+                ),
+                Icon(
+                  statusIcon,
+                  color: statusLabel == "IN" ? Colors.green : Colors.red,
+                  size: 20,
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  statusLabel,
+                  style: const TextStyle(
+                      fontSize: 15, fontWeight: FontWeight.bold),
+                ),
+              ],
             ),
-            const SizedBox(width: 5),
             Text(
-              statusLabel,
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              _formatTime(sttime),
+              // DateFormat('HH:mm a').format(latestDT), // show only time part
+              style: const TextStyle(fontSize: 14),
             ),
           ],
         ),
-        Text(
-          _formatTime(sttime),
-          // DateFormat('HH:mm a').format(latestDT), // show only time part
-          style: const TextStyle(fontSize: 14),
-        ),
-      ],
-    ),
-  );
-}
-
-
+      ),
+    );
+  }
 }

@@ -24,15 +24,6 @@ class _AttendanceCalState extends State<AttendanceCal> {
 
   bool _isLoading = false;
 
-  // final Map<DateTime, String> _attendanceData = {
-  //   DateTime(2025, 3, 5): 'Present',
-  //   DateTime(2025, 3, 6): 'Absent',
-  //   DateTime(2025, 3, 7): 'Holiday',
-  //   DateTime(2025, 3, 12): 'Present',
-  //   DateTime(2025, 3, 18): 'Absent',
-  //   DateTime(2025, 3, 26): 'In',
-  // };
-
   final Map<String, Color> _statusColors = {
     'Present': const Color.fromARGB(255, 110, 209, 115),
     'Absent': Colors.red.shade300,
@@ -85,9 +76,9 @@ Future<void> _fetchEmployeeDataForMonth(int year, int month) async {
 
   // API URLs
   String url =
-      "https://app.attendify.ai/template/public/index.php/MobileApi/get_empattendacedata?company_db=$_companyDb&userid=$_userId&year=$year&month=$month";
+      "https://hrms.attendify.ai/index.php/MobileApi/get_empattendacedata?company_db=$_companyDb&userid=$_userId&year=$year&month=$month";
   String url2 =
-      "https://app.attendify.ai/template/public/index.php/MobileApi/get_daysholiday?company_db=$_companyDb&cid=$_cid&year=$year&month=$month&deptID=$_deptid";
+      "https://hrms.attendify.ai/index.php/MobileApi/get_daysholiday?company_db=$_companyDb&cid=$_cid&year=$year&month=$month&deptID=$_deptid";
 
   try {
     final response = await http.get(Uri.parse(url));
@@ -230,6 +221,7 @@ Future<void> _fetchEmployeeDataForMonth(int year, int month) async {
   return AnimatedSwitcher(
     duration: Duration(milliseconds: 150),
     child: Card(
+      color:Colors.white,
       key: ValueKey(_focusedDay), // Trigger animation when _focusedDay changes.
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -372,11 +364,11 @@ Future<void> _fetchEmployeeDataForMonth(int year, int month) async {
   Widget _buildColorLegend() {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4)],
-      ),
+      // decoration: BoxDecoration(
+      //   color: Colors.white,
+      //   borderRadius: BorderRadius.circular(12),
+      //   // boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4)],
+      // ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: _statusColors.entries.map((entry) {
@@ -429,12 +421,12 @@ Future<void> _fetchEmployeeDataForMonth(int year, int month) async {
 
       final String checkinFullPath = dayData['checkinImage'] != null &&
               dayData['checkinImage'] != ''
-          ? 'https://vision.techkshetra.ai/faceRecognitionEngine/application/uploads/${dayData['checkinImage']}'
+          ? 'https://hrms.attendify.ai/detectedImages/${dayData['checkinImage']}'
           : defaultImage;
 
       final String checkoutFullPath = dayData['checkoutImage'] != null &&
               dayData['checkoutImage'] != ''
-          ? 'https://vision.techkshetra.ai/faceRecognitionEngine/application/uploads/${dayData['checkoutImage']}'
+          ? 'https://hrms.attendify.ai/detectedImages/${dayData['checkoutImage']}'
           : defaultImage;
       final String checkinTimeRaw = dayData['first_check_in'] ?? '';
       final String checkoutTimeRaw = dayData['last_check_in'] ?? '';
@@ -451,10 +443,11 @@ Future<void> _fetchEmployeeDataForMonth(int year, int month) async {
       final String checkinTime = formatTime(checkinTimeRaw);
       final String checkoutTime = formatTime(checkoutTimeRaw);
       return Card(
+        color:Colors.white,
         elevation: 1,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: Padding(
-          padding: EdgeInsets.all(8),
+          padding: EdgeInsets.all(5),
           child: Column(
             children: [
               Row(
@@ -506,8 +499,8 @@ final String holidayname = dayData['holidayname'] != null && dayData['holidaynam
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
         SizedBox(height: 8),
         Container(
-          width: 155,
-          height: 155,
+          width: 180,
+          height: 160,
           padding: EdgeInsets.all(3),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),

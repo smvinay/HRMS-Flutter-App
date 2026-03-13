@@ -1,8 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'home_page.dart';
+import 'ComingSoonPage.dart';
+import 'employeePages/AttendanceCal.dart';
+import 'employeePages/leaveCal.dart';
+import 'employeePages/profile_page.dart';
+import 'hrPages/MyTeamPage.dart';
+import 'hrPages/hr_dashboard.dart';
+import 'visitorPages/VisitorDashboardPage.dart';
+import 'employeePages/home_page.dart';
 import 'login_page.dart';
-import 'visitor_form_page.dart';
+import 'visitorPages/VisitorsFooter.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,8 +21,10 @@ void main() async {
   String initialRoute;
   if (userId == null || levelId == null) {
     initialRoute = '/login';
+  } else if (levelId == '4') {
+    initialRoute = '/HrDashboard';
   } else if (levelId == '7') {
-    initialRoute = '/visitorForm';
+    initialRoute = '/VisitorsFooter';
   } else {
     initialRoute = '/home';
   }
@@ -34,12 +43,44 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Sidebar App',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(primarySwatch: Colors.blue),
+
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+
+        /// Default page background
+        scaffoldBackgroundColor: Colors.white,
+
+        /// Default AppBar theme
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          foregroundColor: Colors.black,
+        ),
+
+        /// Drawer background
+        drawerTheme: const DrawerThemeData(
+          backgroundColor: Colors.white,
+        ),
+
+        /// Card color
+        cardColor: Colors.white,
+      ),
+
+      // theme: ThemeData(primarySwatch: Colors.blue),
       initialRoute: initialRoute,
       routes: {
         '/home': (context) => HomePage(),
         '/login': (context) => LoginPage(),
-        '/visitorForm': (context) => const VisitorFormPage(),
+
+        '/emp_attendance_cal': (context) => AttendanceCal(),
+        '/emp_leave_cal': (context) => LeaveCal(),
+
+        '/VisitorsFooter': (context) => const VisitorsFooter(initialIndex: 2),
+
+        '/HrDashboard': (context) => const HrDashboard(),
+        '/myTeam': (context) => MyTeamPage(),
+        '/visitors': (context) => ComingSoonPage(),
+        '/profile': (context) => const ProfilePage(),
       },
     );
   }

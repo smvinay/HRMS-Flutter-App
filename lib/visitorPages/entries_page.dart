@@ -84,7 +84,7 @@ class _EntriesPageState extends State<EntriesPage> {
   Future<List<Visitor>> fetchVisitors(
       String userId, String apiKey, String companyDb) async {
     final url = Uri.parse(
-        'https://app.attendify.ai/template/public/index.php/Guest/index?user_id=$userId');
+        'https://hrms.attendify.ai/index.php/Guest/index?user_id=$userId');
     final response = await http.get(
       url,
       headers: {

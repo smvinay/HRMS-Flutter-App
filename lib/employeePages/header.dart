@@ -35,42 +35,43 @@ class _HeaderState extends State<Header> {
   Widget build(BuildContext context) {
     return AppBar(
       backgroundColor: const Color(0xFF0557a2),
+      leadingWidth: 50,        // Reduce space for menu area
+      titleSpacing: 5,         // Remove extra space before title
+
+
       title: Text(
-        _employeeCode, // ✅ Employee Code
-        style: const TextStyle(color: Colors.white, fontSize: 16),
+        _employeeCode,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 20,
+        ),
       ),
+
+      /// Menu Icon instead of Profile
       leading: IconButton(
-        icon: CircleAvatar(
-          radius: 18, // Smaller profile icon
-          backgroundColor: Colors.white,
-          child: ClipOval(
-            child: _userProfile.isNotEmpty
-                ? Image.network(
-                    "https://app.attendify.ai/template/public/photos/$_userProfile",
-                    width: 30, height: 30, fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Image.asset("assets/profile.jpg", width: 30, height: 30, fit: BoxFit.cover);
-                    },
-                  )
-                : Image.asset("assets/profile.jpg", width: 30, height: 30, fit: BoxFit.cover),
-          ),
+        icon: const Icon(
+          Icons.menu,
+          color: Colors.white,
+          size: 26,
         ),
         onPressed: () {
-          Scaffold.of(context).openDrawer(); // ✅ Open drawer
+          Scaffold.of(context).openDrawer();
         },
       ),
+
       actions: [
         IconButton(
           icon: const Icon(Icons.notifications, color: Colors.white),
           onPressed: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => EmpNotificationPage()),
+              MaterialPageRoute(
+                builder: (context) => EmpNotificationPage(),
+              ),
             );
           },
         ),
       ],
-
     );
   }
 }
