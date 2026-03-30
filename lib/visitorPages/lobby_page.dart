@@ -39,7 +39,6 @@ class _LobbyPageState extends State<LobbyPage> {
 
     final url = Uri.parse(
         'https://hrms.attendify.ai/index.php/Guest/Guest_Pending_status?user_id=$cid');
-
     try {
       final response = await http.post(url, headers: {
         'apiKey': apiKey,
@@ -158,7 +157,9 @@ class _LobbyPageState extends State<LobbyPage> {
           String time = "-";
           String toMeet = "-";
 
-          if (v["check_in_time"] != null) {
+          if (v["form_submit_time"] != null) {
+            time = v["form_submit_time"].split(" ")[1];
+          }else if (v["check_in_time"] != null) {
             time = v["check_in_time"].split(" ")[1];
           }
 

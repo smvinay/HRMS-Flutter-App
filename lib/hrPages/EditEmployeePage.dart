@@ -6,6 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 
+import 'package:shimmer/shimmer.dart';
+
 class EditEmployeePage extends StatefulWidget {
   final String employeeCode;
 
@@ -24,6 +26,7 @@ class _EditEmployeePageState extends State<EditEmployeePage> {
   List<File> refImages = [];
 
   final ImagePicker picker = ImagePicker();
+  bool isUploadingRef = false;
 
   @override
   void initState() {
@@ -61,6 +64,7 @@ class _EditEmployeePageState extends State<EditEmployeePage> {
   }
 
   Future<void> pickReferenceImage(ImageSource source) async {
+
     final XFile? image = await picker.pickImage(source: source);
 
     if (image == null) return;
@@ -68,7 +72,7 @@ class _EditEmployeePageState extends State<EditEmployeePage> {
     File file = File(image.path);
 
     setState(() {
-      refImages.add(file);
+      isUploadingRef = true;
     });
 
     if (employee != null) {
@@ -79,6 +83,10 @@ class _EditEmployeePageState extends State<EditEmployeePage> {
         referencePhotos.join(','),
       );
     }
+
+    setState(() {
+      isUploadingRef = false;
+    });
   }
 
   Future<void> uploadReferenceImages(
@@ -234,7 +242,7 @@ class _EditEmployeePageState extends State<EditEmployeePage> {
     var request = http.MultipartRequest(
       'POST',
       Uri.parse(
-          'https://dev.techkshetra.ai/Attendify_Dev/template/public/index.php/mobileApi/update_employee_profile'),
+          'https://hrms.attendify.ai/index.php/mobileApi/update_employee_profile'),
     );
 
     request.headers.addAll({
@@ -304,10 +312,13 @@ class _EditEmployeePageState extends State<EditEmployeePage> {
           foregroundColor: Colors.white,
       ),
 
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
+      body: RefreshIndicator(
+        onRefresh: fetchEmployeeDetails,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
 
             /// PROFILE IMAGE
             Stack(
@@ -369,42 +380,71 @@ class _EditEmployeePageState extends State<EditEmployeePage> {
             const SizedBox(height: 10),
 
             /// REFERENCE IMAGE GRID
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount:
-              referencePhotos.length + refImages.length,
-              gridDelegate:
-              const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                  crossAxisSpacing: 8,
-                  mainAxisSpacing: 8),
-              itemBuilder: (context, index) {
+            Stack(
+              children: [
 
-                /// EXISTING IMAGES
-                if (index < referencePhotos.length) {
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: referencePhotos.length,
+                  gridDelegate:
+                  const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 4,
+                      crossAxisSpacing: 8,
+                      mainAxisSpacing: 8),
+                  itemBuilder: (context, index) {
 
-                  String img =
-                      "https://hrms.attendify.ai/reference_photos/${referencePhotos[index]}";
+                      String img =
+                          "https://hrms.attendify.ai/reference_photos/${referencePhotos[index]}";
 
-                  return ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.network(img, fit: BoxFit.cover),
-                  );
-                }
+                      return ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.network(
+                                img,
+                                fit: BoxFit.cover,
+                                cacheWidth: 250,
+                                cacheHeight: 300,
+                                loadingBuilder: (context, child, progress) {
 
-                /// NEWLY SELECTED
-                final file =
-                refImages[index - referencePhotos.length];
+                                  if (progress == null) return child;
 
-                return ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.file(file, fit: BoxFit.cover),
-                );
-              },
-            ),
+                                  return Shimmer.fromColors(
+                                    baseColor: Colors.grey.shade300,
+                                    highlightColor: Colors.grey.shade100,
+                                    child: Container(color: Colors.white),
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+
+                  },
+                ),
+
+                if (isUploadingRef)
+                  Positioned.fill(
+                    child: Container(
+                      color: Colors.black.withOpacity(0.4),
+                      child: const Center(
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            )
           ],
         ),
+      ),
       ),
     );
   }

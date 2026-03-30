@@ -160,7 +160,9 @@ class _CheckInPageState extends State<CheckInPage> with TickerProviderStateMixin
           String time = "-";
           String toMeet = "-";
 
-          if (v["check_in_time"] != null) {
+          if (v["user_approve_time"] != null) {
+            time = v["user_approve_time"].split(" ")[1];
+          }else if (v["check_in_time"] != null) {
             time = v["check_in_time"].split(" ")[1];
           }
 

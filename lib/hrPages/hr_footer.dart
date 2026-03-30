@@ -10,7 +10,7 @@ class HrFooter extends StatelessWidget {
 
     if (index == 0) route = '/myTeam';
     if (index == 1) route = '/HrDashboard';
-    if (index == 2) route = '/visitors';
+    if (index == 2) route = '/hr_visitors';
 
     if (ModalRoute.of(context)?.settings.name != route) {
       Navigator.pushNamed(context, route);
@@ -73,7 +73,7 @@ class HrFooter extends StatelessWidget {
             child: _footerItem(
               context,
               Icons.groups,
-              "Team",
+              "Employees",
               0,
             ),
           ),

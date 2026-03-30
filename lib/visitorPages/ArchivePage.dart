@@ -197,6 +197,7 @@ class _ArchivePageState extends State<ArchivePage> {
                       time,
                       v["guest_photo"],
                       v["guestid"],
+                      v["status"],
                       index,
                       scale,
                     );
@@ -229,6 +230,7 @@ class _ArchivePageState extends State<ArchivePage> {
       String time,
       String photo,
       String guestId,
+      String status,
       int index,
       double scale,
       ) {
@@ -303,14 +305,18 @@ class _ArchivePageState extends State<ArchivePage> {
 
             if (remarks != null)
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.info_outline,
-                      size: _s(13, scale),
-                      color: Colors.orange),
+                  Icon(
+                    Icons.info_outline,
+                    size: _s(13, scale),
+                    color: Colors.orange,
+                  ),
                   SizedBox(width: _s(5, scale)),
                   Expanded(
                     child: Text(
                       remarks,
+                      maxLines: 3,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: _s(12, scale),
@@ -339,7 +345,26 @@ class _ArchivePageState extends State<ArchivePage> {
           ],
         ),
 
-        trailing: IconButton(
+        trailing: status == "2"
+            ? Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: _s(10, scale),
+            vertical: _s(5, scale),
+          ),
+          decoration: BoxDecoration(
+            color: Colors.red.shade100,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            "Rejected",
+            style: TextStyle(
+              color: Colors.red,
+              fontSize: _s(12, scale),
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        )
+            : IconButton(
           icon: const Icon(Icons.unarchive, color: Colors.red),
           onPressed: () {
             _removeArchive(guestId, index);

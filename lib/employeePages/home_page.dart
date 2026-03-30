@@ -23,23 +23,17 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final GlobalKey<SelfAttendanceCameraState> _cameraKey = GlobalKey();
   String attendanceStatus = "checkin";
+  String currentStatus = "checkin";
   String _username = "";
   String _department = "";
   String _userId = "";
-  File? _image;
-  final ImagePicker _picker = ImagePicker();
 
-  String _employeeCode = "Loading...";
   String _userProfile = "";
 
-  String _presentCount = "0";
-  String _absentCount = "0";
-  String _holidayCount = "0";
   String _checkInTime = "";
   String _checkOutTime = "";
   String _checkInImage = "";
   String _checkOutImage = "";
-  String _latestImage = "";
   String _latestCheckInTime = '';
   String _currentDay = '';
 
@@ -48,6 +42,11 @@ class _HomePageState extends State<HomePage> {
   DateTime focusedDay = DateTime.now();
   bool showAttendanceCard = false;
   bool isLoading = false;
+
+  List<dynamic> breakTimeline = [];
+  bool isBreakLoading = false;
+  String totalWork = "";
+  String totalBreak = "";
 
   @override
   void initState() {
@@ -67,9 +66,8 @@ class _HomePageState extends State<HomePage> {
 
     setState(() {
       _userId = prefs.getString('user_id') ?? "";
-      _username = "${prefs.getString('username') ?? ''}".trim();
+      _username = (prefs.getString('username') ?? '').trim();
       _department = prefs.getString('department_name') ?? "Department";
-      _employeeCode = prefs.getString('employe_code') ?? "- - -";
       _userProfile = prefs.getString('user_profile') ?? "";
     });
 
@@ -103,21 +101,18 @@ class _HomePageState extends State<HomePage> {
         final res = json.decode(response.body);
         final data = res['data'];
 
-        // print("data: ${data}");
-
         setState(() {
-          _presentCount = data['presentCount']?.toString() ?? "0";
-          _absentCount = data['absentCount']?.toString() ?? "0";
-          _holidayCount = data['holidayCount']?.toString() ?? "0";
 
           _currentDay = data['currentday']?.toString() ?? _currentDay;
-
           _checkInTime = data['checkinTime'] ?? '';
           _checkOutTime = data['checkoutTime'] ?? '';
           _checkInImage = data['checkInImage'] ?? '';
           _checkOutImage = data['checkOutImage'] ?? '';
-          _latestImage = data['latestImage'] ?? '';
           _latestCheckInTime = data['latestCheckin'] ?? '';
+          currentStatus = data['lateststatus'] ?? '';
+
+          /// ✅ ADD THIS
+          _updateAttendanceStatus();
         });
       } else {
         print("Error: ${response.statusCode}");
@@ -197,6 +192,46 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> loadBreakHistory(String date) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    String apiKey = prefs.getString('apiKey') ?? "";
+    String companyDb = prefs.getString('companyDb') ?? "";
+    String cid = prefs.getString('cid') ?? "";
+    String empCode = prefs.getString('employe_code') ?? "";
+
+    String url =
+        "https://hrms.attendify.ai/index.php/MobileApi/empBreakHistory?employeeCode=$empCode&cid=$cid&date=$date";
+
+    try {
+      setState(() => isBreakLoading = true);
+
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          "apiKey": apiKey,
+          "companyDb": companyDb,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final res = json.decode(response.body);
+
+        if (res['status'] == true) {
+          setState(() {
+            breakTimeline = res['data']['timeline'] ?? [];
+            totalWork = res['data']['totalWork'] ?? "";
+            totalBreak = res['data']['totalBreak'] ?? "";
+          });
+        }
+      }
+    } catch (e) {
+      print("Break API Error: $e");
+    } finally {
+      setState(() => isBreakLoading = false);
+    }
+  }
+
   String _formatTime(String? dateTimeStr) {
     if (dateTimeStr == null || dateTimeStr.isEmpty) return "- - -";
 
@@ -214,30 +249,6 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future<Position> _determinePosition() async {
-    bool serviceEnabled;
-    LocationPermission permission;
-
-    serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      return Future.error("Location services are disabled.");
-    }
-
-    permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        return Future.error("Location permissions are denied.");
-      }
-    }
-
-    if (permission == LocationPermission.deniedForever) {
-      return Future.error("Location permissions are permanently denied.");
-    }
-
-    return await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high);
-  }
 
   Widget fadeInWidget(Widget child, int delay) {
     return TweenAnimationBuilder(
@@ -261,23 +272,33 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final scale = _calcScaleFromWidth(MediaQuery.of(context).size.width);
     return Scaffold(
-      drawer: CustomDrawer(),
+      drawer: CustomDrawer(currentRoute: '/home'),
       appBar: const Header(),
       body: RefreshIndicator(
         onRefresh: () async {
-          await _loadUserData(); // refresh API
+
+          DateTime now = DateTime.now();
+
+          await _loadUserData();
+
           await loadAttendanceForMonth(
-            DateTime.now().year,
-            DateTime.now().month,
+            now.year,
+            now.month,
           );
+
+          setState(() {
+            /// ✅ Reset calendar to today
+            selectedDay = now;
+            focusedDay = now;
+
+            /// ✅ Show updated card
+            showAttendanceCard = false;
+          });
         },
-        child: SingleChildScrollView(
+        child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          children: [
                 /// Greeting Row
                 _buildGreetingSection(scale),
                 // const SizedBox(height: 20),
@@ -292,8 +313,8 @@ class _HomePageState extends State<HomePage> {
                           "Check-In",
                           _formatTime(_checkInTime),
                           _checkInImage,
-                          _checkInImage != null && _checkInImage.isNotEmpty
-                              ? () => _showImagePopup(context, _checkInImage)
+                          _checkInImage.isNotEmpty
+                              ? () => showImage(_checkInImage)
                               : null,
                           scale),
                     ),
@@ -303,8 +324,8 @@ class _HomePageState extends State<HomePage> {
                           "Check-out",
                           _formatTime(_checkOutTime),
                           _checkOutImage,
-                          _checkOutImage != null && _checkOutImage.isNotEmpty
-                              ? () => _showImagePopup(context, _checkOutImage)
+                          _checkOutImage.isNotEmpty
+                              ? () => showImage(_checkOutImage)
                               : null,
                           scale),
                     ),
@@ -316,7 +337,11 @@ class _HomePageState extends State<HomePage> {
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(12.0), // Set the top-left radius
+                      topRight: Radius.circular(12.0), // Set the top-right radius
+                      // bottomLeft and bottomRight are zero by default
+                    ),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black12,
@@ -326,18 +351,48 @@ class _HomePageState extends State<HomePage> {
                     ],
                   ),
                   child: TableCalendar(
-                    firstDay: DateTime.utc(2024, 1, 1),
+                    key: ValueKey(focusedDay),
+                    rowHeight: 40,
+                    daysOfWeekHeight: 30,
+                    calendarStyle: const CalendarStyle(
+                      cellMargin: EdgeInsets.all(3),
+                      outsideDaysVisible: false,
+                    ),
+                    firstDay: DateTime.utc(2026, 1, 1),
                     lastDay: DateTime.utc(2030, 12, 31),
                     focusedDay: focusedDay,
                     selectedDayPredicate: (day) {
                       return isSameDay(selectedDay, day);
                     },
+
                     onDaySelected: (selected, focused) {
+
+                      DateTime today = DateTime.now();
+
+                      DateTime selectedDate =
+                      DateTime(selected.year, selected.month, selected.day);
+
+                      DateTime todayDate =
+                      DateTime(today.year, today.month, today.day);
+
+                      String key = DateFormat('yyyy-MM-dd').format(selectedDate);
+
+                      bool isHoliday =
+                          attendanceMap.containsKey(key) &&
+                              attendanceMap[key]['status'] == "Holiday";
+
+                      /// Block future dates only if NOT holiday
+                      if (selectedDate.isAfter(todayDate) && !isHoliday) {
+                        return;
+                      }
                       setState(() {
                         selectedDay = selected;
                         focusedDay = focused;
                         showAttendanceCard = true;
                       });
+                      if(!isHoliday) {
+                        loadBreakHistory(key);
+                      }
                     },
                     onPageChanged: (newFocusedDay) {
                       setState(() {
@@ -352,37 +407,44 @@ class _HomePageState extends State<HomePage> {
                     headerStyle: const HeaderStyle(
                       formatButtonVisible: false,
                       titleCentered: true,
-                      leftChevronIcon: Icon(Icons.chevron_left),
-                      rightChevronIcon: Icon(Icons.chevron_right),
+
+                      // headerPadding: EdgeInsets.symmetric(vertical: 4),
+                      headerMargin: EdgeInsets.only(bottom: 8),
+
+                      leftChevronIcon: Icon(Icons.chevron_left, size: 20),
+                      rightChevronIcon: Icon(Icons.chevron_right, size: 20),
+
+                      leftChevronPadding: EdgeInsets.all(0),
+                      rightChevronPadding: EdgeInsets.all(0),
+
                       titleTextStyle: TextStyle(
-                        fontSize: 18,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     calendarBuilders: CalendarBuilders(
                       defaultBuilder: (context, date, _) {
-                        return _buildDayCell(date, false);
+                        return _buildDayCell(date, false ,scale);
                       },
                       todayBuilder: (context, date, _) {
-                        return _buildDayCell(date, false, isToday: true);
+                        return _buildDayCell(date, false,scale, isToday: true);
                       },
                       selectedBuilder: (context, date, _) {
-                        return _buildDayCell(date, true);
+                        return _buildDayCell(date, true , scale);
                       },
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
 
+            _buildCalendarLegend(scale),
+             const SizedBox(height: 12),
                 if (showAttendanceCard) ...[
-                  const SizedBox(height: 12),
                   buildSelectedAttendance(),
+                  buildBreakTable(),
                 ],
               ],
             ),
           ),
-        ),
-      ),
     );
   }
 
@@ -406,7 +468,7 @@ class _HomePageState extends State<HomePage> {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
-                borderRadius: BorderRadius.circular(_s(14, scale)),
+                borderRadius: BorderRadius.circular(_s(12, scale)),
               ),
               child: Stack(
                 children: [
@@ -416,48 +478,50 @@ class _HomePageState extends State<HomePage> {
                       bottom: -15, left: 30, child: _bubble(_s(45, scale))),
                   Positioned(top: 20, right: 80, child: _bubble(_s(20, scale))),
                   Padding(
-                    padding: EdgeInsets.all(_s(10, scale)),
+                    padding: EdgeInsets.all(_s(8, scale)),
                     child: Row(
                       children: [
                         Stack(
                           children: [
                             CircleAvatar(
-                              radius: _s(25, scale),
+                              radius: _s(30, scale),
                               backgroundColor: Colors.white,
                               child: ClipOval(
                                 child: _userProfile.isNotEmpty
                                     ? Image.network(
                                         "https://hrms.attendify.ai/photos/$_userProfile",
-                                        width: _s(46, scale),
-                                        height: _s(46, scale),
+                                        width: _s(55, scale),
+                                        height: _s(55, scale),
                                         fit: BoxFit.cover,
                                       )
                                     : Image.asset(
                                         "assets/profile.jpg",
-                                        width: _s(46, scale),
-                                        height: _s(46, scale),
+                                        width: _s(55, scale),
+                                        height: _s(55, scale),
                                         fit: BoxFit.cover,
                                       ),
                               ),
                             ),
 
                             /// Status Dot
+                            if(currentStatus != '')
                             Positioned(
                               bottom: 0,
                               right: 0,
                               child: Container(
-                                width: _s(12, scale),
-                                height: _s(12, scale),
+                                width: _s(15, scale),
+                                height: _s(15, scale),
                                 decoration: BoxDecoration(
-                                  color: attendanceStatus == "checkout"
-                                      ? Colors.green
-                                      : Colors.red,
+                                  color: currentStatus == "checkout"
+                                      ? Colors.red
+                                      : Colors.green,
                                   shape: BoxShape.circle,
                                   border:
                                       Border.all(color: Colors.white, width: 2),
                                 ),
                               ),
                             ),
+
                           ],
                         ),
                         SizedBox(width: _s(12, scale)),
@@ -490,8 +554,8 @@ class _HomePageState extends State<HomePage> {
                                   ),
                                   SizedBox(height: _s(2, scale)),
                                   Text(
-                                    _getLatestStatus().isNotEmpty
-                                        ? "Latest: ${_formatTime(_getLatestStatus())}"
+                                    _latestCheckInTime.isNotEmpty
+                                        ? "Latest: ${_formatTime(_latestCheckInTime)}"
                                         : "",
                                     style: TextStyle(
                                       fontSize: _s(12, scale),
@@ -506,8 +570,18 @@ class _HomePageState extends State<HomePage> {
                         SelfAttendanceCamera(
                           key: _cameraKey,
                           attStatus: attendanceStatus,
-                          onSuccess: () {
-                            _loadUserData();
+                          onSuccess: () async {
+                            DateTime now = DateTime.now();
+                            await _loadUserData();
+                            await loadAttendanceForMonth(
+                            now.year,
+                            now.month,
+                            );
+                            setState(() {
+                              selectedDay = now;
+                              focusedDay = now;
+                              showAttendanceCard = false;
+                            });
                           },
                         ),
                       ],
@@ -543,25 +617,30 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildTimeCard(String label, String time, String image,
-      VoidCallback? onTap, double scale) {
+  Widget _buildTimeCard(
+      String label,
+      String time,
+      String image,
+      VoidCallback? onTap,
+      double scale,
+      ) {
     IconData icon = label == "Check-In" ? Icons.login : Icons.logout;
 
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: EdgeInsets.symmetric(
-          vertical: _s(14, scale),
-          horizontal: _s(16, scale),
+          vertical: _s(12, scale),
+          horizontal: _s(14, scale),
         ),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(_s(12, scale)),
-          boxShadow: const [
+          boxShadow: [
             BoxShadow(
               color: Colors.black12,
-              blurRadius: 6,
-              offset: Offset(0, 3),
+              blurRadius: _s(6, scale),
+              offset: Offset(0, _s(3, scale)),
             )
           ],
         ),
@@ -573,21 +652,27 @@ class _HomePageState extends State<HomePage> {
                 Icon(
                   icon,
                   color: label == "Check-In" ? Colors.green : Colors.red,
-                  size: _s(22, scale),
+                  size: _s(20, scale),
                 ),
+
                 SizedBox(width: _s(6, scale)),
+
                 Text(
                   label,
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    fontSize: _s(15, scale),
+                    fontSize: _s(14, scale),
                   ),
                 ),
               ],
             ),
+
             Text(
               time,
-              style: TextStyle(fontSize: _s(14, scale)),
+              style: TextStyle(
+                fontSize: _s(14, scale),
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ],
         ),
@@ -595,139 +680,144 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  void _showImagePopup(BuildContext context, String image) {
-    final imageUrl = 'https://hrms.attendify.ai/detectedImages/$image';
 
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8), // Reduced border radius
-        ),
-        child: Container(
-          height: 500, // Fixed height
-          width: MediaQuery.of(context).size.width *
-              0.8, // Optional: make it responsive
-          padding: const EdgeInsets.all(10),
-          child: Column(
-            children: [
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: Image.network(
-                    imageUrl,
-                    fit: BoxFit.cover,
-                    width: double.infinity,
-                    errorBuilder: (ctx, err, _) =>
-                        const Center(child: Text("Failed to load image")),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text("Close",
-                      style: TextStyle(color: Colors.black)),
-                ),
-              )
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _getLatestStatus() {
-    final checkInDT =
-        _checkInTime.isNotEmpty ? DateTime.tryParse(_checkInTime) : null;
-    final checkOutDT =
-        _checkOutTime.isNotEmpty ? DateTime.tryParse(_checkOutTime) : null;
-    final latestDT = _latestCheckInTime.isNotEmpty
-        ? DateTime.tryParse(_latestCheckInTime)
-        : null;
-
-    if (checkInDT == null && checkOutDT == null && latestDT == null) {
+  void _updateAttendanceStatus() {
+    if (currentStatus == null || currentStatus.isEmpty) {
       attendanceStatus = "checkin";
-      return "";
-    }
-
-    if (checkInDT != null && checkOutDT == null) {
+    } else if (currentStatus == "checkout") {
+      attendanceStatus = "checkin";
+    } else {
       attendanceStatus = "checkout";
-      return _latestCheckInTime;
     }
-
-    if (checkInDT != null && checkOutDT != null) {
-      attendanceStatus = "checkout";
-      return _checkOutTime;
-    }
-
-    return "";
   }
 
-  Widget _buildDayCell(DateTime date, bool isSelected, {bool isToday = false}) {
+  Widget _buildDayCell(DateTime date, bool isSelected, double scale, {bool isToday = false}) {
     String key = DateFormat('yyyy-MM-dd').format(date);
 
-    bool hasAttendance = attendanceMap.containsKey(key);
-    bool isHoliday = hasAttendance && attendanceMap[key]['status'] == "Holiday";
+    DateTime today = DateTime.now();
 
+    /// 🔥 SHIFT END TIME (today)
+    DateTime shiftEnd = DateTime(
+      today.year,
+      today.month,
+      today.day,
+      18, // hour
+      30, // minute
+    );
+
+    bool isTodayDate =
+        date.year == today.year &&
+            date.month == today.month &&
+            date.day == today.day;
+
+    bool isBeforeShiftEnd = today.isBefore(shiftEnd);
+
+    bool hasData = attendanceMap.containsKey(key);
+    bool isHoliday = hasData && attendanceMap[key]['status'] == "Holiday";
+
+    bool hasCheckIn =
+        hasData && (attendanceMap[key]['checkin'] != null && attendanceMap[key]['checkin'] != "");
+
+    bool hasCheckOut =
+        hasData && (attendanceMap[key]['checkout'] != null && attendanceMap[key]['checkout'] != "");
+
+    bool isCheckInOnly = hasCheckIn && !hasCheckOut;
+    bool isCheckOutOnly = !hasCheckIn && hasCheckOut;
+    bool isPastDay = date.isBefore(DateTime(today.year, today.month, today.day));
+    bool isAbsent = !hasData && isPastDay;
     bool isWeekend =
         date.weekday == DateTime.saturday || date.weekday == DateTime.sunday;
 
+    Color bgColor = Colors.white;
+    Color textColor = Colors.black87;
+    BoxBorder? border;
+
+
+    /// Check-in only
+     if (isCheckInOnly) {
+      bgColor = Colors.blue.shade100;
+      textColor = Colors.blue.shade800;
+    }
+
+
+    /// Present (Check-in + Check-out)
+    else if (hasCheckIn && hasCheckOut) {
+
+      /// 🔥 TODAY → check shift timing
+      if (isTodayDate && isBeforeShiftEnd) {
+        /// STILL WORKING → BLUE
+        bgColor = Colors.blue.shade100;
+        textColor = Colors.blue.shade800;
+      } else {
+        /// AFTER SHIFT → GREEN
+        bgColor = Colors.green.shade100;
+        textColor = Colors.green.shade800;
+      }
+    }
+    /// Absent
+    else if (isAbsent && !isToday && !isWeekend && !isHoliday) {
+      bgColor = Colors.red.shade100;
+      textColor = Colors.red.shade800;
+    }
+    /// Holiday
+    if (isHoliday) {
+      bgColor = Colors.orange.shade100;
+      textColor = Colors.orange.shade800;
+    }
+
+
+    /// Weekend
+    else if (isWeekend) {
+      bgColor = Colors.white;
+      textColor = Colors.grey;
+    }
+
+    /// Today border
+    if (isToday) {
+      border = Border.all(
+        color: Colors.blue,
+        width: 2,
+      );
+    }
+
     return Container(
-      margin: const EdgeInsets.all(4),
+      margin: EdgeInsets.all(_s(2, scale)),
       decoration: BoxDecoration(
-        color: isToday ? Colors.blue.shade100 : Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade300),
+        color: bgColor,
+        shape: BoxShape.circle,
+
+        border: isToday
+            ? Border.all(
+          color: Colors.blue,
+          width: 1,
+        )
+            : null,
+
         boxShadow: isSelected
             ? [
-                const BoxShadow(
-                  color: Colors.black26,
-                  blurRadius: 4,
-                  offset: Offset(0, 2),
-                )
-              ]
+          const BoxShadow(
+            color: Colors.black38,
+            blurRadius: 4,
+            offset: Offset(0, 2),
+          ),
+        ]
             : [],
       ),
-      child: Stack(
-        children: [
-          Center(
-            child: Text(
-              '${date.day}',
-              style: TextStyle(
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: isWeekend ? Colors.grey : Colors.black,
-              ),
-            ),
+      child: Center(
+        child: Text(
+          '${date.day}',
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: _s(13, scale),
+            color: textColor,
           ),
-
-          /// Attendance dot
-          if (hasAttendance)
-            Positioned(
-              top: 4,
-              right: 4,
-              child: Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: isHoliday ? Colors.orange : Colors.green,
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-        ],
+        ),
       ),
     );
   }
-
   Widget buildSelectedAttendance() {
+    final scale = _calcScaleFromWidth(MediaQuery.of(context).size.width);
+
     String key = DateFormat('yyyy-MM-dd').format(selectedDay);
 
     if (!attendanceMap.containsKey(key)) {
@@ -736,34 +826,58 @@ class _HomePageState extends State<HomePage> {
 
     var data = attendanceMap[key];
 
+    /// DATE HEADER
+    Widget dateHeader = Center(
+      child: Text(
+        DateFormat('dd-MM-yyyy').format(selectedDay),
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          fontSize: _s(16, scale),
+        ),
+      ),
+    );
+
+    /// HOLIDAY CARD
     if (data['status'] == "Holiday") {
       return Container(
-        padding: const EdgeInsets.all(14),
+        padding: EdgeInsets.all(_s(12, scale)),
         decoration: BoxDecoration(
           color: Colors.orange.shade50,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.orange),
+          borderRadius: BorderRadius.circular(_s(14, scale)),
+          border: Border.all(color: Colors.orange.shade300),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: _s(6, scale),
+              offset: Offset(0, _s(3, scale)),
+            )
+          ],
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              DateFormat('dd MMM yyyy').format(selectedDay),
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
-            const SizedBox(height: 8),
+
+            dateHeader,
+
+            SizedBox(height: _s(14, scale)),
+
             Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.celebration, color: Colors.orange),
-                const SizedBox(width: 6),
+
+                Icon(
+                  Icons.celebration,
+                  color: Colors.orange,
+                  size: _s(22, scale),
+                ),
+
+                SizedBox(width: _s(6, scale)),
+
                 Text(
                   data['holidayname'] ?? "Holiday",
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
+                  style: TextStyle(
+                    fontSize: _s(15, scale),
+                    fontWeight: FontWeight.w600,
+                    color: Colors.orange.shade800,
                   ),
                 ),
               ],
@@ -773,52 +887,50 @@ class _HomePageState extends State<HomePage> {
       );
     }
 
+    /// NORMAL ATTENDANCE CARD
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(_s(10, scale)),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: const [
+        borderRadius: BorderRadius.circular(_s(12, scale)),
+        boxShadow: [
           BoxShadow(
             color: Colors.black12,
-            blurRadius: 8,
-            offset: Offset(0, 3),
+            blurRadius: _s(8, scale),
+            offset: Offset(0, _s(3, scale)),
           )
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          /// Date
-          Text(
-            DateFormat('dd MMM yyyy').format(selectedDay),
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-            ),
-          ),
 
-          const SizedBox(height: 12),
+          dateHeader,
 
-          /// Checkin Checkout Row
+          SizedBox(height: _s(12, scale)),
+
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+
               Expanded(
                 child: _buildAttendanceBox(
                   "Check-In",
-                  data['checkin'] ?? "-",
+                  _formatTime(data['checkin']),
                   data['checkinImage'],
                   Colors.green,
+                  scale,
                 ),
               ),
-              const SizedBox(width: 10),
+
+              SizedBox(width: _s(10, scale)),
+
               Expanded(
                 child: _buildAttendanceBox(
                   "Check-Out",
-                  data['checkout'] ?? "-",
+                  _formatTime(data['checkout']),
                   data['checkoutImage'],
                   Colors.red,
+                  scale,
                 ),
               ),
             ],
@@ -829,77 +941,79 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildAttendanceBox(
-    String title,
-    String time,
-    String? image,
-    Color color,
-  ) {
+      String title,
+      String time,
+      String? image,
+      Color color,
+      double scale,
+      ) {
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: EdgeInsets.all(_s(10, scale)),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(_s(10, scale)),
         border: Border.all(color: Colors.grey.shade300),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+
           Row(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                title == "Check-In" ? Icons.login : Icons.logout,
-                color: color,
-                size: 18,
-              ),
-              const SizedBox(width: 4),
+
               Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  fontSize: 13,
+                  fontSize: _s(13, scale),
+                ),
+              ),
+
+              const Spacer(),
+
+              Text(
+                time,
+                style: TextStyle(
+                  fontSize: _s(14, scale),
+                  fontWeight: FontWeight.w600,
+                  color: color,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            time,
-            style: const TextStyle(
-              fontSize: 13,
-            ),
-          ),
-          const SizedBox(height: 8),
+
+          SizedBox(height: _s(8, scale)),
+
           if (image != null && image != "")
             GestureDetector(
               onTap: () => showImage(image),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(_s(8, scale)),
                 child: Stack(
                   children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.network(
-                        "https://hrms.attendify.ai/detectedImages/$image",
-                        height: 100,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                      ),
+
+                    Image.network(
+                      "https://hrms.attendify.ai/detectedImages/$image",
+                      height: _s(95, scale),
+                      width: double.infinity,
+                      fit: BoxFit.cover,
                     ),
+
                     Positioned(
-                      bottom: 4,
-                      right: 4,
+                      bottom: _s(4, scale),
+                      right: _s(4, scale),
                       child: Container(
-                        padding: const EdgeInsets.all(3),
+                        padding: EdgeInsets.all(_s(3, scale)),
                         decoration: const BoxDecoration(
                           color: Colors.black54,
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.zoom_in,
-                          size: 14,
+                          size: _s(14, scale),
                           color: Colors.white,
                         ),
                       ),
-                    )
+                    ),
                   ],
                 ),
               ),
@@ -908,43 +1022,67 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
-
   void showImage(String image) {
     String url = "https://hrms.attendify.ai/detectedImages/$image";
 
     showDialog(
       context: context,
       barrierColor: Colors.black87,
+      barrierDismissible: true, // ✅ click outside to close
       builder: (_) {
+        final size = MediaQuery.of(context).size;
+
         return Dialog(
           backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 40,
+          ), // ✅ space around dialog
           child: Stack(
             children: [
-              /// Image
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.network(
-                  url,
-                  fit: BoxFit.contain,
+              /// Image Container
+              Center(
+          child: GestureDetector(
+            onTap: () => Navigator.pop(context),
+            // child: Image.network(url, fit: BoxFit.contain),
+        child: Container(
+                  width: size.width * 0.95, // 🔥 slightly reduced
+                  constraints: BoxConstraints(
+                    maxHeight: size.height * 0.85,
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.network(
+                      url,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
                 ),
               ),
+              ),
 
-              /// Close Button
+              /// Close Button (Improved UI)
               Positioned(
                 top: 10,
                 right: 10,
                 child: GestureDetector(
                   onTap: () => Navigator.pop(context),
                   child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: const BoxDecoration(
-                      color: Colors.black54,
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white, // ✅ white background
                       shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black26,
+                          blurRadius: 6,
+                        ),
+                      ],
                     ),
                     child: const Icon(
                       Icons.close,
-                      color: Colors.white,
-                      size: 20,
+                      color: Colors.black,
+                      size: 22,
                     ),
                   ),
                 ),
@@ -955,4 +1093,306 @@ class _HomePageState extends State<HomePage> {
       },
     );
   }
+
+  Widget _buildCalendarLegend(double scale) {
+    return Container(
+      padding: EdgeInsets.all(_s(5, scale)),
+      // margin: EdgeInsets.only(top: _s(5, scale)),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        // borderRadius: BorderRadius.circular(_s(10, scale)),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(12.0), // Set the top-left radius
+          bottomRight: Radius.circular(12.0), // Set the top-right radius
+          // bottomLeft and bottomRight are zero by default
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: _s(5, scale),
+            offset: Offset(0, _s(2, scale)),
+          )
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center ,
+        spacing: _s(15, scale),
+        // runSpacing: _s(8, scale),
+        children: [
+          _legendItem("Present", Colors.green.shade200, scale),
+          _legendItem("Check-In Only", Colors.blue.shade200, scale),
+          _legendItem("Absent", Colors.red.shade200, scale),
+          _legendItem("Holiday", Colors.orange.shade200, scale),
+          // _legendBorderItem("Today", Colors.blue, scale),
+        ],
+      ),
+    );
+  }
+
+  Widget _legendItem(String text, Color color, double scale) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: _s(14, scale),
+          height: _s(14, scale),
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        SizedBox(width: _s(6, scale)),
+        Text(
+          text,
+          style: TextStyle(
+            fontSize: _s(12, scale),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget buildBreakTable() {
+    final scale = _calcScaleFromWidth(MediaQuery.of(context).size.width);
+    String key = DateFormat('yyyy-MM-dd').format(selectedDay);
+
+    if (!attendanceMap.containsKey(key)) {
+      return const SizedBox();
+    }
+
+    if (isBreakLoading) {
+      return const LinearProgressIndicator(minHeight: 2);
+    }
+
+    if (breakTimeline.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(10),
+          child: Text("No timeline records found"),
+        ),
+      );
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(top: 10, bottom: 15),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(color: Colors.black12, blurRadius: 6)
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+
+          /// ================= HEADER =================
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+
+              /// TITLE CENTER
+              Center(
+                child: Text(
+                  "Day Break Logs",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: _s(15, scale),
+                  ),
+                ),
+              ),
+
+              SizedBox(height: _s(12, scale)),
+
+              /// 3 EQUAL COLUMNS
+              Row(
+                children: [
+
+                  /// DURATION
+                  Expanded(
+                    child: Column(
+                      children: [
+                        Text(
+                          "Duration",
+                          style: TextStyle(
+                            color: Colors.grey,
+                            fontSize: _s(11, scale),
+                          ),
+                        ),
+                        SizedBox(height: _s(4, scale)),
+                        Text(
+                          totalWork,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: _s(15, scale),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  /// WORKING
+                  Expanded(
+                    child: Column(
+                      children: [
+                        Text(
+                          "Working",
+                          style: TextStyle(
+                            color: Colors.grey,
+                            fontSize: _s(11, scale),
+                          ),
+                        ),
+                        SizedBox(height: _s(4, scale)),
+                        Text(
+                          totalWork,
+                          style: TextStyle(
+                            color: Colors.green.shade700,
+                            fontWeight: FontWeight.bold,
+                            fontSize: _s(15, scale),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  /// BREAK
+                  Expanded(
+                    child: Column(
+                      children: [
+                        Text(
+                          "Break",
+                          style: TextStyle(
+                            color: Colors.grey,
+                            fontSize: _s(11, scale),
+                          ),
+                        ),
+                        SizedBox(height: _s(4, scale)),
+                        Text(
+                          totalBreak,
+                          style: TextStyle(
+                            color: Colors.red.shade700,
+                            fontWeight: FontWeight.bold,
+                            fontSize: _s(15, scale),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 8),
+          Divider(color: Colors.grey.shade300),
+
+          /// ================= TABLE =================
+          LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minWidth: constraints.maxWidth, // 🔥 FIX FULL WIDTH
+                  ),
+                  child: DataTable(
+                    columnSpacing: constraints.maxWidth * 0.05,
+                    columns: const [
+                      DataColumn(label: Text("Sl.No")),
+                      DataColumn(label: Text("Image")),
+                      DataColumn(label: Text("From")),
+                      DataColumn(label: Text("To")),
+                      DataColumn(label: Text("Duration")),
+                      DataColumn(label: Text("Work")),
+                      DataColumn(label: Text("Break")),
+                    ],
+                    rows: List.generate(breakTimeline.length, (index) {
+                      var row = breakTimeline[index];
+
+                      int from = row['from'];
+                      int to = row['to'];
+                      int sec = to - from;
+
+                      int h = sec ~/ 3600;
+                      int m = (sec % 3600) ~/ 60;
+                      int s = sec % 60;
+
+                      String dur;
+
+                      if (h > 0) {
+                        dur = "${h}h ${m}m ${s}s";
+                      } else if (m > 0) {
+                        dur = "${m}m ${s}s";
+                      } else {
+                        dur = "${s}s";
+                      }
+
+                      return DataRow(cells: [
+                        DataCell(Text("${index + 1}")),
+
+                        DataCell(
+                          row['start_image_thumb'] != null &&
+                              row['start_image_thumb'] != ""
+                              ? GestureDetector(
+                            onTap: () => showImage(row['start_image']), // 🔥 FULL IMAGE
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: Image.network(
+                                "https://hrms.attendify.ai/detectedImages/${row['start_image_thumb']}",
+                                height: 45,
+                                width: 45,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          )
+                              : const Text("—"),
+                        ),
+
+                        DataCell(Text(row['from_time'] ?? "-")),
+                        DataCell(Text(row['to_time'] ?? "-")),
+                        DataCell(Text(row['duration_text'] ?? "-")),
+
+                        /// WORK
+                        DataCell(
+                          row['type'] == 'work'
+                              ? Container(
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 4, horizontal: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.green.shade100,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(dur),
+                          )
+                              : const Text("-"),
+                        ),
+
+                        /// BREAK
+                        DataCell(
+                          row['type'] == 'break'
+                              ? Container(
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 4, horizontal: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.red.shade100,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(dur),
+                          )
+                              : const Text("-"),
+                        ),
+                      ]);
+                    }),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
 }

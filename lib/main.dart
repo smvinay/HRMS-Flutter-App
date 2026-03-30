@@ -4,7 +4,9 @@ import 'ComingSoonPage.dart';
 import 'employeePages/AttendanceCal.dart';
 import 'employeePages/leaveCal.dart';
 import 'employeePages/profile_page.dart';
+import 'hrPages/HrVisitorsPage.dart';
 import 'hrPages/MyTeamPage.dart';
+import 'hrPages/hrEmpAtt.dart';
 import 'hrPages/hr_dashboard.dart';
 import 'visitorPages/VisitorDashboardPage.dart';
 import 'employeePages/home_page.dart';
@@ -71,16 +73,18 @@ class MyApp extends StatelessWidget {
       routes: {
         '/home': (context) => HomePage(),
         '/login': (context) => LoginPage(),
-
+          // employee login
         '/emp_attendance_cal': (context) => AttendanceCal(),
         '/emp_leave_cal': (context) => LeaveCal(),
-
+        '/profile': (context) => const ProfilePage(),
+        // visitor login
         '/VisitorsFooter': (context) => const VisitorsFooter(initialIndex: 2),
-
+        // hr login
         '/HrDashboard': (context) => const HrDashboard(),
         '/myTeam': (context) => MyTeamPage(),
-        '/visitors': (context) => ComingSoonPage(),
-        '/profile': (context) => const ProfilePage(),
+        '/hr_visitors': (context) => HrVisitorsPage(),
+        '/hr_empatt': (context) => HrEmployeeAtt(),
+
       },
     );
   }

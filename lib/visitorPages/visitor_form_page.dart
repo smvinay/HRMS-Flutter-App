@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:dropdown_search/dropdown_search.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'VisitorDrawerPage.dart';
 import 'visitor_header.dart';
@@ -127,79 +128,47 @@ class _VisitorFormPageState extends State<VisitorFormPage>
     });
   }
 
-  /// Merge only new visitors returned by API into local _visitors list.
-  /// We insert new items at the beginning and shift controller maps so the
-  /// existing user inputs remain attached to the same visitor index.
   void _mergeNewVisitors(List<Visitor> fetched) {
     if (fetched.isEmpty) return;
 
-    // set of guestId strings already present
     final existingIds = _visitors.map((v) => v.guestId).toSet();
 
-    // find only those fetched visitors not already in our list
     final List<Visitor> newOnes =
     fetched.where((f) => !existingIds.contains(f.guestId)).toList();
 
     if (newOnes.isEmpty) return;
 
-    // If you prefer to append at the end rather than prepend, change insertAll below.
     setState(() {
-      // insert new visitors at start (show newest first)
-      _visitors.insertAll(0, newOnes);
 
-      final int newCount = newOnes.length;
+      int startIndex = _visitors.length;
 
-      // Prepare new maps that start with controllers for new items, then append old entries shifted
-      final Map<int, TextEditingController> newName = {};
-      final Map<int, TextEditingController> newPhone = {};
-      final Map<int, TextEditingController> newEmail = {};
-      final Map<int, TextEditingController> newPurpose = {};
-      final Map<int, TextEditingController> newFrom = {};
-      final Map<int, Employee?> newSelected = {};
+      /// add visitors at END
+      _visitors.addAll(newOnes);
 
-      // create controllers for newly inserted visitors
-      int idx = 0;
-      for (final v in newOnes) {
-        newName[idx] = TextEditingController(
+      /// create controllers for new visitors
+      for (int i = 0; i < newOnes.length; i++) {
+
+        int index = startIndex + i;
+
+        final v = newOnes[i];
+
+        nameControllers[index] = TextEditingController(
             text: '${v.firstName ?? ''} ${v.lastName ?? ''}'.trim());
-        newPhone[idx] = TextEditingController(text: v.contact ?? '');
-        newEmail[idx] = TextEditingController(text: v.email ?? '');
-        newPurpose[idx] = TextEditingController(text: v.purposeOfVisit ?? '');
-        newFrom[idx] = TextEditingController(text: v.guestFrom ?? '');
-        newSelected[idx] = null;
-        idx++;
+
+        phoneControllers[index] =
+            TextEditingController(text: v.contact ?? '');
+
+        emailControllers[index] =
+            TextEditingController(text: v.email ?? '');
+
+        purposeControllers[index] =
+            TextEditingController(text: v.purposeOfVisit ?? '');
+
+        fromControllers[index] =
+            TextEditingController(text: v.guestFrom ?? '');
+
+        _selectedEmployeeByIndex[index] = null;
       }
-
-      // helper to shift existing controllers into the new map with offset
-      void _shiftControllers(
-          Map<int, TextEditingController> old, Map<int, TextEditingController> target, int offset) {
-        old.forEach((key, controller) {
-          target[key + offset] = controller;
-        });
-      }
-
-      // shift existing maps by newCount
-      _shiftControllers(nameControllers, newName, newCount);
-      _shiftControllers(phoneControllers, newPhone, newCount);
-      _shiftControllers(emailControllers, newEmail, newCount);
-      _shiftControllers(purposeControllers, newPurpose, newCount);
-      _shiftControllers(fromControllers, newFrom, newCount);
-
-      // shift selected employees map as well
-      _selectedEmployeeByIndex.forEach((key, value) {
-        newSelected[key + newCount] = value;
-      });
-
-      // replace maps
-      nameControllers = newName;
-      phoneControllers = newPhone;
-      emailControllers = newEmail;
-      purposeControllers = newPurpose;
-      fromControllers = newFrom;
-      _selectedEmployeeByIndex = newSelected;
-
-      // keep the same visitor in view by shifting selectedIndex by newCount
-      _selectedIndex += newCount;
     });
   }
   void _loadVisitorData() async {
@@ -487,7 +456,7 @@ class _VisitorFormPageState extends State<VisitorFormPage>
             duration: const Duration(milliseconds: 350),
             child: SingleChildScrollView(
               key: ValueKey(_selectedIndex),
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(15),
               child: _buildVisitorForm(
                   context, _selectedIndex, isTablet),
             ),
@@ -501,7 +470,7 @@ class _VisitorFormPageState extends State<VisitorFormPage>
     final cardWidth = isTablet ? 110.0 : 110.0;
 
     return SizedBox(
-      height: isTablet ? _s(160, scale) :  _s(220, scale),
+      height: isTablet ? _s(170, scale) :  _s(250, scale),
       child: ListView.builder(
         controller: _scrollController,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
@@ -536,7 +505,7 @@ class _VisitorFormPageState extends State<VisitorFormPage>
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 350),
               curve: Curves.easeInOut,
-              margin: const EdgeInsets.only(right: 12),
+              margin: const EdgeInsets.only(right: 8),
               width: cardWidth,
               padding: const EdgeInsets.all(8),
               transform: Matrix4.identity()
@@ -635,130 +604,156 @@ class _VisitorFormPageState extends State<VisitorFormPage>
       ),
     );
   }
-  Widget _buildVisitorForm(
-      BuildContext context, int index, bool isTablet) {
+  Widget _buildVisitorForm(BuildContext context, int index, bool isTablet) {
+
+    final scale = _calcScaleFromWidth(MediaQuery.of(context).size.width);
 
     final visitor = _visitors[index];
 
-    // ✅ Show name if exists else serial number
     final headerTitle =
-    (visitor.firstName != null &&
-        visitor.firstName!.trim().isNotEmpty)
+    (visitor.firstName != null && visitor.firstName!.trim().isNotEmpty)
         ? visitor.firstName!
         : "Visitor ${index + 1}";
 
     return Card(
-      elevation: 2,
+      elevation: _s(0, scale),
       color: Colors.white,
+      margin: EdgeInsets.symmetric(vertical: _s(1, scale)),
       shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8)),
+        borderRadius: BorderRadius.circular(_s(12, scale)),
+      ),
       child: Padding(
         padding: EdgeInsets.symmetric(
-            horizontal: isTablet ? 24 : 16,
-            vertical: isTablet ? 20 : 14),
+          // horizontal: isTablet ? _s(, scale) : _s(2, scale),
+          // vertical: isTablet ? _s(4, scale) : _s(4, scale),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min, // ✅ prevents extra height
           children: [
 
-            /// HEADER
+
+            /// NAME + IMAGE
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.start,
+
               children: [
+
                 Expanded(
-                  child: Text(
-                    headerTitle,
-                    style: TextStyle(
-                      fontSize: isTablet ? 22 : 18,
-                      fontWeight: FontWeight.bold,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start, // 👈 add this
+                    children: [
+
+                     Text(
+                          headerTitle,
+                          style: TextStyle(
+                            fontSize: isTablet ? _s(22, scale) : _s(18, scale),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+
+
+                      _buildTextField(
+                        context,
+                        'Name',
+                        nameControllers[index]!,
+                        "name",
+                      ),
+
+                      SizedBox(height: _s(5, scale)),
+
+                      _buildTextField(
+                        context,
+                        'Phone',
+                        phoneControllers[index]!,
+                        "phone",
+                        keyboard: TextInputType.number,
+                      ),
+                    ],
+                  ),
+                ),
+
+                SizedBox(width: _s(8, scale)),
+
+                /// VISITOR IMAGE
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(_s(10, scale)),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(_s(10, scale)),
+                    child: Image.network(
+                      visitor.detected_face != null &&
+                          visitor.detected_face!.isNotEmpty
+                          ? 'https://hrms.attendify.ai/guest_faces/${visitor.detected_face}'
+                          : 'https://via.placeholder.com/100',
+                      width: isTablet ? _s(130, scale) : _s(130, scale),
+                      height: isTablet ? _s(135, scale) : _s(145, scale),
+                      fit: BoxFit.cover,
                     ),
                   ),
                 ),
               ],
             ),
 
-            const SizedBox(height: 10),
+            SizedBox(height: _s(5, scale)),
 
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-
-                /// LEFT SIDE (NAME + PHONE)
-                Expanded(
-                  child: Column(
-                    children: [
-
-                      _buildTextField(
-                        'Name',
-                        nameControllers[index]!,
-                        "name",
-                      ),
-
-                      const SizedBox(height: 10),
-
-                      _buildTextField(
-                        'Phone',
-                        phoneControllers[index]!,
-                        "phone",
-                        keyboard: TextInputType.phone,
-                      ),
-
-                    ],
-                  ),
-                ),
-
-                const SizedBox(width: 12),
-
-                /// RIGHT SIDE IMAGE
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.network(
-                    visitor.detected_face != null && visitor.detected_face!.isNotEmpty
-                        ? 'https://hrms.attendify.ai/guest_faces/${visitor.detected_face}'
-                        : 'https://via.placeholder.com/90',
-                    width: 100,
-                    height: 100,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-              ],
+            _buildTextField(
+              context,
+              'Email',
+              emailControllers[index]!,
+              "email",
+              keyboard: TextInputType.emailAddress,
+              isOptional: true,
             ),
 
-            _buildTextField('Email', emailControllers[index]!, "email",
-                keyboard: TextInputType.emailAddress, isOptional: true),
-            const SizedBox(height: 10),
+            SizedBox(height: _s(5, scale)),
 
+            _buildTextField(
+              context,
+              'Organisation',
+              fromControllers[index]!,
+              "from",
+            ),
 
+            SizedBox(height: _s(5, scale)),
 
-            _buildTextField('Organisation', fromControllers[index]!, "from"),
-            const SizedBox(height: 16),
+            _buildTextField(
+              context,
+              'Purpose',
+              purposeControllers[index]!,
+              "purpose",
+            ),
 
-            _buildTextField('Purpose', purposeControllers[index]!, "purpose"),
-            const SizedBox(height: 10),
+            SizedBox(height: _s(5, scale)),
 
             emplyeesList(context, index),
-            const SizedBox(height: 10),
 
+            SizedBox(height: _s(15, scale)),
 
+            /// SAVE BUTTON
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: () async {
-                  await submitVisitorData(
-                      context, visitor, index);
+                  await submitVisitorData(context, visitor, index);
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF0557a2),
-                  padding:
-                  const EdgeInsets.symmetric(vertical: 14),
+                  padding: EdgeInsets.symmetric(vertical: _s(14, scale)),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
+                    borderRadius: BorderRadius.circular(_s(10, scale)),
+                  ),
+                  elevation: _s(2, scale),
                 ),
-                child: const Text(
-                  'Save',
+                child: Text(
+                  'Save Visitor',
                   style: TextStyle(
+                    fontSize: _s(16, scale),
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
                     color: Colors.white,
-                    fontSize: 18, // increase font size here
-                    fontWeight: FontWeight.w600, // optional for better visibility
                   ),
                 ),
               ),
@@ -769,66 +764,88 @@ class _VisitorFormPageState extends State<VisitorFormPage>
     );
   }
 
+
   Widget _buildTextField(
+      BuildContext context,
       String label,
       TextEditingController controller,
       String fieldKey, {
         TextInputType keyboard = TextInputType.text,
         bool isOptional = false,
       }) {
-    return TextFormField(
-      controller: controller,
-      keyboardType: keyboard,
-      autovalidateMode: AutovalidateMode.onUserInteraction,
-      onEditingComplete: () {
-        controller.text = controller.text.trim();
-      },
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.w500,
-        ),
+    final scale = _calcScaleFromWidth(MediaQuery.of(context).size.width);
 
-        filled: true,
-        fillColor: Colors.grey.shade50,
-
-        floatingLabelStyle: TextStyle(
-          color: _errors[fieldKey] != null
-              ? Colors.red
-              : const Color(0xFF0557a2),
-          fontSize: 18,
-          fontWeight: FontWeight.w500,
-        ),
-
-        errorText: _errors[fieldKey],
-
-        /// DEFAULT BORDER
-        border: UnderlineInputBorder(
-          borderRadius: BorderRadius.circular(5),
-          borderSide: const BorderSide(
-            color: Colors.grey,
+    return Container(
+      margin: EdgeInsets.only(bottom: _s(4, scale)),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(_s(6, scale)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
           ),
-        ),
+        ],
+      ),
+      child: TextFormField(
+        controller: controller,
+        keyboardType: keyboard,
+        autovalidateMode: AutovalidateMode.onUserInteraction,
 
-        /// NORMAL STATE BORDER
-        enabledBorder: UnderlineInputBorder(
-          borderRadius: BorderRadius.circular(5),
-          borderSide: BorderSide(
-            color: Colors.grey.shade400,
-            width: 1.2,
+        inputFormatters: fieldKey == "phone"
+            ? [
+          FilteringTextInputFormatter.digitsOnly,
+          LengthLimitingTextInputFormatter(10),
+        ]
+            : null,
+
+        onChanged: (value) {
+          if (fieldKey == "phone") {
+            if (value.length != 10) {
+              setState(() {
+                _errors[fieldKey] = "Phone number must be 10 digits";
+              });
+            } else {
+              setState(() {
+                _errors.remove(fieldKey);
+              });
+            }
+          }
+        },
+
+        onEditingComplete: () {
+          controller.text = controller.text.trim();
+        },
+
+        style: TextStyle(fontSize: _s(15, scale)),
+
+        decoration: InputDecoration(
+          labelText: label,
+
+          labelStyle: TextStyle(
+            fontSize: _s(15, scale),
+            fontWeight: FontWeight.w500,
           ),
-        ),
 
-        /// FOCUSED BORDER
-        focusedBorder: UnderlineInputBorder(
-          borderRadius: BorderRadius.circular(5),
-          borderSide: BorderSide(
+          floatingLabelStyle: TextStyle(
             color: _errors[fieldKey] != null
                 ? Colors.red
                 : const Color(0xFF0557a2),
-            width: 1.5,
+            fontSize: _s(15, scale),
+            fontWeight: FontWeight.w500,
           ),
+
+          errorText: _errors[fieldKey],
+
+          contentPadding: EdgeInsets.symmetric(
+            horizontal: _s(8, scale),
+            vertical: _s(5, scale),
+          ),
+
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
         ),
       ),
     );
@@ -915,151 +932,171 @@ class _VisitorFormPageState extends State<VisitorFormPage>
   }
 
   Widget emplyeesList(BuildContext context, int index) {
-    return DropdownSearch<Employee>(
-      items: _employees,
-      selectedItem: _selectedEmployeeByIndex[index] ?? _loggedInEmployee,
-      itemAsString: (Employee e) =>
-      "${e.firstName} ${e.lastName == "null" ? "" : e.lastName ?? ""}",
-      /// enables clear (X) button
-      clearButtonProps: const ClearButtonProps(
-        isVisible: false,
+
+    final scale = _calcScaleFromWidth(MediaQuery.of(context).size.width);
+
+    return Container(
+      margin: EdgeInsets.only(bottom: _s(12, scale)),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(_s(6, scale)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
 
-      dropdownBuilder: (context, selectedItem) {
-        if (selectedItem == null) {
-          return const SizedBox();
-        }
+      child: DropdownSearch<Employee>(
+        items: _employees,
+        selectedItem: _selectedEmployeeByIndex[index] ?? _loggedInEmployee,
 
-        return Row(
-          children: [
-            CircleAvatar(
-              radius: 16,
-              backgroundImage: selectedItem.profileThumbnail != null
-                  ? NetworkImage(
-                  "https://hrms.attendify.ai/photos/${selectedItem.profileThumbnail}")
-                  : null,
-              backgroundColor: Colors.grey.shade300,
-              child: selectedItem.profileThumbnail == null
-                  ? const Icon(Icons.person, size: 18, color: Colors.white)
-                  : null,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                selectedItem.firstName,
-                style: const TextStyle(fontSize: 14),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        );
-      },
+        itemAsString: (Employee e) =>
+        "${e.firstName} ${e.lastName == "null" ? "" : e.lastName ?? ""}",
 
-      popupProps: PopupProps.menu(
-        showSearchBox: true,
-        searchFieldProps: const TextFieldProps(
-          decoration: InputDecoration(
-            hintText: "Search employee...",
-            // prefixIcon: Icon(Icons.search),
-          ),
+        clearButtonProps: const ClearButtonProps(
+          isVisible: false,
         ),
-        itemBuilder: (context, employee, isSelected) {
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? const Color(0xFFE8F1FF)
-                  : Colors.transparent,
-            ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 16,
-                  backgroundImage: employee.profileThumbnail != null
-                      ? NetworkImage(
-                      "https://hrms.attendify.ai/photos/${employee.profileThumbnail}")
-                      : null,
-                  backgroundColor: Colors.grey.shade300,
-                  child: employee.profileThumbnail == null
-                      ? const Icon(Icons.person,
-                      size: 18, color: Colors.white)
-                      : null,
+
+        /// SELECTED ITEM VIEW
+        dropdownBuilder: (context, selectedItem) {
+
+          if (selectedItem == null) {
+            return const SizedBox();
+          }
+
+          return Row(
+            children: [
+
+              CircleAvatar(
+                radius: 16,
+                backgroundImage: selectedItem.profileThumbnail != null
+                    ? NetworkImage(
+                    "https://hrms.attendify.ai/photos/${selectedItem.profileThumbnail}")
+                    : null,
+                backgroundColor: Colors.grey.shade300,
+                child: selectedItem.profileThumbnail == null
+                    ? const Icon(Icons.person, size: 15, color: Colors.white)
+                    : null,
+              ),
+
+              const SizedBox(width: 10),
+
+              Expanded(
+                child: Text(
+                  selectedItem.firstName,
+                  style: const TextStyle(fontSize: 12),
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    employee.firstName,
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           );
         },
-      ),
 
-      onChanged: (Employee? val) {
-        setState(() {
-          _selectedEmployeeByIndex[index] = val;
-          _errors["employee"] = null;
-        });
+        /// POPUP LIST
+        popupProps: PopupProps.menu(
+          showSearchBox: true,
 
-        _employeeFocus.unfocus(); // remove focus
-      },
-
-      dropdownDecoratorProps: DropDownDecoratorProps(
-        dropdownSearchDecoration: InputDecoration(
-          labelText: "Host Name",
-          floatingLabelBehavior: FloatingLabelBehavior.auto, // important
-
-          labelStyle: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w500,
-          ),
-
-          floatingLabelStyle: TextStyle(
-            color: _errors["employee"] != null
-                ? Colors.red
-                : const Color(0xFF0557a2),
-            fontSize: 18,
-            fontWeight: FontWeight.w500,
-          ),
-
-          filled: true,
-          fillColor: Colors.grey.shade50,
-
-          errorText: _errors["employee"],
-
-          /// DEFAULT BORDER
-          border: UnderlineInputBorder(
-            borderRadius: BorderRadius.circular(5),
-            borderSide: const BorderSide(
-              color: Colors.grey,
+          searchFieldProps: const TextFieldProps(
+            decoration: InputDecoration(
+              hintText: "Search employee...",
+              border: InputBorder.none,
             ),
           ),
 
-          /// NORMAL STATE BORDER
-          enabledBorder: UnderlineInputBorder(
-            borderRadius: BorderRadius.circular(5),
-            borderSide: BorderSide(
-              color: Colors.grey.shade400,
-              width: 1.2,
+          itemBuilder: (context, employee, isSelected) {
+
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? const Color(0xFFE8F1FF)
+                    : Colors.transparent,
+              ),
+
+              child: Row(
+                children: [
+
+                  CircleAvatar(
+                    radius: 16,
+                    backgroundImage: employee.profileThumbnail != null
+                        ? NetworkImage(
+                        "https://hrms.attendify.ai/photos/${employee.profileThumbnail}")
+                        : null,
+                    backgroundColor: Colors.grey.shade300,
+                    child: employee.profileThumbnail == null
+                        ? const Icon(Icons.person,
+                        size: 14, color: Colors.white)
+                        : null,
+                  ),
+
+                  const SizedBox(width: 10),
+
+                  Expanded(
+                    child: Text(
+                      employee.firstName,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+
+        /// VALUE CHANGE
+        onChanged: (Employee? val) {
+
+          setState(() {
+            _selectedEmployeeByIndex[index] = val;
+            _errors["employee"] = null;
+          });
+
+          _employeeFocus.unfocus();
+        },
+
+        /// DECORATION
+        dropdownDecoratorProps: DropDownDecoratorProps(
+
+          dropdownSearchDecoration: InputDecoration(
+
+            labelText: "Host Name",
+
+            floatingLabelBehavior: FloatingLabelBehavior.auto,
+
+            labelStyle: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
             ),
-          ),
-          focusedBorder: UnderlineInputBorder(
-            borderRadius: BorderRadius.circular(5),
-            borderSide: BorderSide(
+
+            floatingLabelStyle: TextStyle(
               color: _errors["employee"] != null
                   ? Colors.red
                   : const Color(0xFF0557a2),
-              width: 1.5,
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
             ),
+
+            errorText: _errors["employee"],
+
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: _s(8, scale),
+              vertical: _s(5, scale),
+            ),
+
+            /// REMOVE BORDER
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+
+            filled: false,
           ),
         ),
       ),
     );
   }
-
   void _showflashbar(String message, Color color) {
     Flushbar(
       message: message,

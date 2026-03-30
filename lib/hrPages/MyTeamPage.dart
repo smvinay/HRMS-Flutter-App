@@ -19,7 +19,7 @@ class _MyTeamPageState extends State<MyTeamPage> {
 
   List employees = [];
   List filteredEmployees = [];
-  String filterStatus = "all";
+  String filterStatus = "active";
   TextEditingController searchController = TextEditingController();
 
   @override
@@ -50,7 +50,7 @@ class _MyTeamPageState extends State<MyTeamPage> {
 
       setState(() {
         employees = data["data"];
-        filteredEmployees = employees;
+        filterEmployees(); // apply default filter
       });
     }
   }
@@ -84,53 +84,84 @@ class _MyTeamPageState extends State<MyTeamPage> {
       body: Column(
         children: [
 
-          /// TOP FILTERS
           Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(
               children: [
 
-                /// SEARCH
+                /// SEARCH BOX
                 Expanded(
-                  child: TextField(
-                    controller: searchController,
-                    decoration: const InputDecoration(
-                      hintText: "Search employee",
-                      prefixIcon: Icon(Icons.search),
-                      border: OutlineInputBorder(),
+                  child: SizedBox(
+                    height: 38,
+                    child: TextField(
+                      controller: searchController,
+                      onChanged: (value) {
+                        filterEmployees();
+                      },
+                      decoration: InputDecoration(
+                        hintText: "Search employee",
+                        prefixIcon: const Icon(Icons.search, size: 20),
+                        contentPadding:
+                        const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: Colors.grey.shade400),
+                        ),
+
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: Colors.grey.shade400),
+                        ),
+
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF0557a2),
+                            width: 1.5,
+                          ),
+                        ),
+                      ),
                     ),
-                    onChanged: (value) {
-                      filterEmployees();
-                    },
                   ),
                 ),
 
                 const SizedBox(width: 10),
 
-                /// STATUS FILTER
-                DropdownButton<String>(
-                  value: filterStatus,
-                  items: const [
-                    DropdownMenuItem(
-                      value: "all",
-                      child: Text("All"),
-                    ),
-                    DropdownMenuItem(
-                      value: "active",
-                      child: Text("Active"),
-                    ),
-                    DropdownMenuItem(
-                      value: "inactive",
-                      child: Text("Inactive"),
-                    ),
-                  ],
-                  onChanged: (value) {
-                    setState(() {
-                      filterStatus = value!;
-                    });
-                    filterEmployees();
-                  },
-                )
+                /// FILTER DROPDOWN
+                Container(
+                  height: 38,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey.shade400),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: DropdownButton<String>(
+                    value: filterStatus,
+                    underline: const SizedBox(),
+                    icon: const Icon(Icons.filter_list),
+                    items: const [
+                      DropdownMenuItem(
+                        value: "active",
+                        child: Text("Active"),
+                      ),
+                      DropdownMenuItem(
+                        value: "inactive",
+                        child: Text("Inactive"),
+                      ),
+                      DropdownMenuItem(
+                        value: "all",
+                        child: Text("All"),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        filterStatus = value!;
+                      });
+                      filterEmployees();
+                    },
+                  ),
+                ),
               ],
             ),
           ),
@@ -164,7 +195,7 @@ class _MyTeamPageState extends State<MyTeamPage> {
 
     return Card(
       color: Colors.white,
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       child: ListTile(
 
         /// PROFILE + STATUS DOT

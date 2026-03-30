@@ -43,8 +43,8 @@ Future<void> _login(BuildContext context) async {
   String username = _usernameController.text.trim() ?? '';
   String password = _passwordController.text.trim() ?? '';
   String loginCompCode = companyCode.isNotEmpty
-      ? companyCode
-      : _companyCodeController.text.trim();
+      ? companyCode.toUpperCase()
+      : _companyCodeController.text.trim().toUpperCase();
 
   // Validation
   if (username.isEmpty && password.isEmpty) {
@@ -214,6 +214,7 @@ Widget build(BuildContext context) {
                   if (cachedCompanyCode == null || cachedCompanyCode!.isEmpty)
                     TextField(
                       controller: _companyCodeController,
+                      textCapitalization: TextCapitalization.characters,
                       decoration: const InputDecoration(
                         labelText: 'Company Code',
                         prefixIcon: Icon(Icons.code),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -48,7 +49,7 @@ class _EmpNotificationPageState extends State<EmpNotificationPage> {
       );
 
       final result = json.decode(response.body);
-// print(result);
+print(result);
       if(result['status']==true){
 
         setState(() {
@@ -128,8 +129,6 @@ class _EmpNotificationPageState extends State<EmpNotificationPage> {
       if (response.statusCode == 200) {
 
         final result = json.decode(response.body);
-
-        // print("API Response: $result");
 
         if (result['status'] == true) {
 
@@ -211,6 +210,53 @@ class _EmpNotificationPageState extends State<EmpNotificationPage> {
     );
   }
 
+  String _formatDateTime(String? dateTimeStr) {
+    if (dateTimeStr == null || dateTimeStr.isEmpty) return "- - -";
+
+    try {
+      final dateTime = DateTime.parse(dateTimeStr);
+
+      final day = dateTime.day.toString().padLeft(2, '0');
+      final month = dateTime.month.toString().padLeft(2, '0');
+      final year = dateTime.year;
+
+      final hour = dateTime.hour;
+      final minute = dateTime.minute.toString().padLeft(2, '0');
+
+      final period = hour >= 12 ? 'PM' : 'AM';
+      final hour12 = hour % 12 == 0 ? 12 : hour % 12;
+
+      return '$day-$month-$year $hour12:$minute $period';
+    } catch (e) {
+      print("Time parsing error: $e");
+      return "- - -";
+    }
+  }
+
+  bool isPreviousPending(Map item) {
+
+    int status = int.tryParse(item['status'].toString()) ?? 0;
+
+    if (status != 0) return false;
+
+    DateTime today = DateTime.now();
+
+    DateTime checkIn =
+        DateTime.tryParse(item['check_in_time'].toString()) ?? today;
+
+    DateTime todayDate =
+    DateTime(today.year, today.month, today.day);
+
+    DateTime checkDate =
+    DateTime(checkIn.year, checkIn.month, checkIn.day);
+
+    return checkDate.isBefore(todayDate);
+  }
+
+  bool hasValue(dynamic val) {
+    return val != null && val.toString().trim().isNotEmpty;
+  }
+
   Widget visitorCard(item) {
 
     int status = int.tryParse(item['status'].toString()) ?? 0;
@@ -228,220 +274,305 @@ class _EmpNotificationPageState extends State<EmpNotificationPage> {
       builder: (context, setStateCard) {
 
         return Container(
-          margin: const EdgeInsets.symmetric(vertical: 6),
-          padding: const EdgeInsets.all(10),
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.06),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              )
-            ],
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade200),
           ),
 
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Column(
             children: [
 
-              /// FACE IMAGE
-              GestureDetector(
-                onTap: () {
-                  showFullImage(context, fullImage);
-                },
-                child: CircleAvatar(
-                  radius: 30,
-                  backgroundImage: NetworkImage(faceImage),
-                ),
+              /// TOP ROW
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+
+                  /// FACE IMAGE
+                  GestureDetector(
+                    onTap: () {
+                      showFullImage(context, fullImage);
+                    },
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: Image.network(
+                        faceImage,
+                        width: 65,
+                        height: 70,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+
+                        /// NAME + DATE
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+
+                            Text(
+                              item['first_name'] ?? '',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blueAccent,
+                                fontSize: 14,
+                              ),
+                            ),
+
+                            Text(
+                              _formatDateTime(item['check_in_time']),
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey,
+                              ),
+                            )
+                          ],
+                        ),
+
+                        const SizedBox(height: 2),
+
+
+
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+
+                            /// CONTACT
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.phone,
+                                  size: 14,
+                                  color: Colors.blueGrey.shade400,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  item['contact'] ?? '',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            /// STATUS
+                            buildStatusBadge(status),
+
+                          ],
+                        ),
+
+                        if (hasValue(item['guestfrom']))
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 2),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(
+                                  Icons.business,
+                                  size: 14,
+                                  color: Colors.blueGrey.shade400,
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    item['guestfrom'],
+                                    textAlign: TextAlign.start,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                        if (hasValue(item['purpose_of_visit']))
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 2),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(
+                                  Icons.work_outline,
+                                  size: 14,
+                                  color: Colors.blueGrey.shade400,
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    item['purpose_of_visit'],
+                                    textAlign: TextAlign.start,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                        if (status == 2 && hasValue(item['remarks']))
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 2),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(
+                                  Icons.message_outlined,
+                                  size: 14,
+                                  color: Colors.blueGrey.shade400,
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    item['remarks'],
+                                    maxLines: 3,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.start,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  )
+                ],
               ),
 
-              const SizedBox(width: 10),
+              const SizedBox(height: 4),
 
-              /// DETAILS
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              /// ACTION BUTTONS
+              if (status == 0 && !isPreviousPending(item))
+                Row(
                   children: [
 
-                    /// NAME + TIME
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          item['first_name'] ?? '',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                          ),
+                    Expanded(
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          backgroundColor: Colors.red,
                         ),
-
-                        Text(
-                          item['check_in_time'] ?? '',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
-                          ),
-                        )
-                      ],
+                        onPressed: () {
+                          setStateCard(() {
+                            showRejectBox = !showRejectBox;
+                          });
+                        },
+                        child: const Text(
+                          "Reject",
+                          style: TextStyle(fontSize: 11,color: Colors.white),
+                        ),
+                      ),
                     ),
 
-                    const SizedBox(height: 3),
+                    const SizedBox(width: 6),
 
-
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        /// CONTACT
-                        if (item['contact'] != null)
-                          Text(
-                            item['contact'],
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: Colors.black87,
-                            ),
-                          ),
-
-                        /// STATUS BADGE
-                        buildStatusBadge(status),
-                      ],
+                    Expanded(
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          backgroundColor: Colors.green,
+                        ),
+                        onPressed: () {
+                          updateVisitorStatus(id, 1, "Approved");
+                        },
+                        child: const Text(
+                          "Accept",
+                          style: TextStyle(fontSize: 11,color: Colors.white),
+                        ),
+                      ),
                     ),
-
-                    const SizedBox(height: 3),
-
-                    /// COMPANY
-                    if (item['guestfrom'] != null)
-                      Text(
-                        item['guestfrom'],
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
-                      ),
-
-                    /// REJECT REMARK
-                    if (status == 2 && item['remarks'] != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 3),
-                        child: Text(
-                          "Remark: ${item['remarks']}",
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-
-                    const SizedBox(height: 8),
-
-                    /// ACTION BUTTONS
-                    if (status == 0)
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 6),
-                                backgroundColor: Colors.red,
-                              ),
-                              onPressed: () {
-                                setStateCard(() {
-                                  showRejectBox = !showRejectBox;
-                                });
-                              },
-                              child: const Text(
-                                "Reject",
-                                style: TextStyle(fontSize: 12 ,color:Colors.white),
-                              ),
-                            ),
-                          ),
-
-                          const SizedBox(width: 6),
-
-                          Expanded(
-                            child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 6),
-                                backgroundColor: Colors.green,
-                              ),
-                              onPressed: () {
-                                updateVisitorStatus(id, 1, "Approved");
-                              },
-                              child: const Text(
-                                "Accept",
-                                style: TextStyle(fontSize: 12 , color:Colors.white),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    /// REJECT BOX
-                    if (showRejectBox)
-                      Column(
-                        children: [
-
-                          const SizedBox(height: 6),
-
-                          TextField(
-                            controller: remarkController,
-                            decoration: const InputDecoration(
-                              hintText: "Reject remark",
-                              isDense: true,
-                              border: OutlineInputBorder(),
-                            ),
-                          ),
-
-                          const SizedBox(height: 5),
-
-                          Row(
-                            children: [
-
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.green),
-                                onPressed: () {
-                                  updateVisitorStatus(
-                                      id,
-                                      2,
-                                      remarkController.text);
-                                },
-                                child: const Text("✔"),
-                              ),
-
-                              const SizedBox(width: 6),
-
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.grey),
-                                onPressed: () {
-                                  setStateCard(() {
-                                    showRejectBox = false;
-                                  });
-                                },
-                                child: const Text("✖"),
-                              ),
-                            ],
-                          )
-                        ],
-                      )
                   ],
+                )
+
+              else if (isPreviousPending(item))
+                Text(
+                  "Request expired",
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey.shade600,
+                    fontStyle: FontStyle.italic,
+                  ),
                 ),
-              )
+
+              /// REJECT BOX
+              if (showRejectBox)
+                Column(
+                  children: [
+
+                    const SizedBox(height: 6),
+
+                    TextField(
+                      controller: remarkController,
+                      decoration: const InputDecoration(
+                        hintText: "Remark",
+                        isDense: true,
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+
+                    const SizedBox(height: 4),
+
+                    Row(
+                      children: [
+
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green),
+                          onPressed: () {
+                            updateVisitorStatus(
+                                id,
+                                2,
+                                remarkController.text);
+                          },
+                          child: const Text("✔"),
+                        ),
+
+                        const SizedBox(width: 6),
+
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.grey),
+                          onPressed: () {
+                            setStateCard(() {
+                              showRejectBox = false;
+                            });
+                          },
+                          child: const Text("✖"),
+                        ),
+                      ],
+                    )
+                  ],
+                )
             ],
           ),
         );
       },
     );
   }
+
+
   @override
   Widget build(BuildContext context) {
 
     return Scaffold(
 
       appBar: AppBar(
-        title: Text("Employee Notifications"),
+        title: Text("Notifications"),
         backgroundColor: const Color(0xFF0557a2),
         foregroundColor: Colors.white,
       ),

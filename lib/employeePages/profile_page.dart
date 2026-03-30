@@ -149,7 +149,7 @@ class _ProfilePageState extends State<ProfilePage>
         opacity: 1,
         duration: const Duration(milliseconds: 500),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           child: Column(
             children: [
 
@@ -167,7 +167,7 @@ class _ProfilePageState extends State<ProfilePage>
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(8),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black12,
@@ -271,10 +271,10 @@ class _ProfilePageState extends State<ProfilePage>
                   );
                 },
                 child: Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(8),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black12,
@@ -319,11 +319,20 @@ class _ProfilePageState extends State<ProfilePage>
               const SizedBox(height: 12),
 
               /// EXTRA INFO CARD
-              Container(
-                padding: const EdgeInsets.all(12),
+        TweenAnimationBuilder(
+          duration: const Duration(milliseconds: 1000),
+          tween: Tween<double>(begin: 50, end: 0),
+          builder: (context, value, child) {
+            return Transform.translate(
+              offset: Offset(0, value),
+              child: child,
+            );
+          },
+          child: Container(
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(8),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black12,
@@ -341,6 +350,7 @@ class _ProfilePageState extends State<ProfilePage>
                     _infoRow("Address", employee['address']),
                   ],
                 ),
+              ),
               ),
             ],
           ),

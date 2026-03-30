@@ -6,10 +6,13 @@ import '../login_page.dart';
 import 'home_page.dart';
 
 class CustomDrawer extends StatefulWidget {
+  final String currentRoute;
+
+  const CustomDrawer({Key? key, required this.currentRoute}) : super(key: key);
+
   @override
   _CustomDrawerState createState() => _CustomDrawerState();
 }
-
 class _CustomDrawerState extends State<CustomDrawer> {
   String _username = "Loading...";
   String _email = "Loading...";
@@ -54,8 +57,8 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 child: _userProfile.isNotEmpty
                     ? Image.network(
                         "https://hrms.attendify.ai/photos/$_userProfile",
-                        width: 60, // Set size of image
-                        height: 60,
+                        width: 66, // Set size of image
+                        height: 66,
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
                           return Image.asset("assets/profile.jpg", width: 60, height: 60, fit: BoxFit.cover);
@@ -68,19 +71,16 @@ class _CustomDrawerState extends State<CustomDrawer> {
               color: Color(0xFF0557a2), // Custom header color
             ),
           ),
-          _buildDrawerItem(Icons.home, "Home", () {
+
+          _buildDrawerItem(Icons.home, "Home", '/home', () {
             Navigator.pushReplacementNamed(context, '/home');
           }),
 
-          _buildDrawerItem(Icons.calendar_month, "Attendance", () {
+          _buildDrawerItem(Icons.calendar_month, "Attendance", '/emp_attendance_cal', () {
             Navigator.pushNamed(context, '/emp_attendance_cal');
           }),
 
-          // _buildDrawerItem(Icons.sick_outlined, "Leave", () {
-          //   Navigator.pushReplacementNamed(context, '/emp_leave_cal');
-          // }),
-
-          _buildDrawerItem(Icons.person, "Profile", () {
+          _buildDrawerItem(Icons.person, "Profile", '/profile', () {
             Navigator.pushNamed(context, '/profile');
           }),
 
@@ -91,7 +91,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
           const Spacer(),
           const Divider(),
 
-          _buildDrawerItem(Icons.logout, "Logout", () {
+          _buildDrawerItem(Icons.logout, "Logout",'Logout', () {
             _showLogoutDialog(context);
           }),
         ],
@@ -100,11 +100,40 @@ class _CustomDrawerState extends State<CustomDrawer> {
   }
 
   // Drawer Item Widget
-  Widget _buildDrawerItem(IconData icon, String title, VoidCallback onTap) {
-    return ListTile(
-      leading: Icon(icon, color: Colors.black87),
-      title: Text(title, style: const TextStyle(fontSize: 16)),
-      onTap: onTap,
+  Widget _buildDrawerItem(
+      IconData icon,
+      String title,
+      String routeName,
+      VoidCallback onTap,
+      ) {
+    bool isActive = widget.currentRoute == routeName;
+
+    return Container(
+      color: isActive ? Colors.blue.withOpacity(0.1) : Colors.transparent,
+      child: ListTile(
+        leading: Icon(
+          icon,
+          color: isActive ? const Color(0xFF0557a2) : Colors.black87,
+        ),
+        title: Text(
+          title,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+            color: isActive ? const Color(0xFF0557a2) : Colors.black,
+          ),
+        ),
+        onTap: () {
+          if (!isActive) {
+            Navigator.pop(context);
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              onTap();
+            });
+          } else {
+            Navigator.pop(context); // just close drawer if same page
+          }
+        },
+      ),
     );
   }
 

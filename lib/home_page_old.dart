@@ -154,7 +154,7 @@ class _HomePageState extends State<HomePage> {
     final statusCard = _buildLatestStatusCard();
 
     return Scaffold(
-      drawer: CustomDrawer(),
+      // drawer: CustomDrawer(),
       appBar: const Header(),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(15),

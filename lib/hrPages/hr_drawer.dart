@@ -70,9 +70,9 @@ class _HrDrawerState extends State<HrDrawer> {
 
           _item(context, Icons.dashboard, "Home", route: "/HrDashboard"),
 
-          _item(context, Icons.groups, "My Team", route: "/myTeam"),
+          _item(context, Icons.groups, "Employees", route: "/myTeam"),
 
-          _item(context, Icons.access_time, "Attendance", route: "/attendance"),
+          _item(context, Icons.access_time, "Attendance", route: "/hr_empatt"),
 
           // _item(context, Icons.event_note, "Leaves Track", route: "/leaves"),
 
@@ -80,7 +80,7 @@ class _HrDrawerState extends State<HrDrawer> {
 
           // _item(context, Icons.apartment, "Department", route: "/department"),
 
-          _item(context, Icons.person, "Visitors", route: "/visitors"),
+          _item(context, Icons.person, "Visitors", route: "/hr_visitors"),
 
           const Spacer(),
           const Divider(),
@@ -154,7 +154,11 @@ class _HrDrawerState extends State<HrDrawer> {
         if (onTap != null) {
           onTap();
         } else if (route != null) {
-          Navigator.pushNamed(context, route);
+          Navigator.pop(context);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            Navigator.pushNamed(context, route);
+          });
+          // Navigator.pushNamed(context, route);
         }
       },
     );

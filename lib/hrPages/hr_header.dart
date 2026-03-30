@@ -44,19 +44,19 @@ class _HrHeaderState extends State<HrHeader> {
           },
         ),
       ),
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.notifications, color: Colors.white),
-          onPressed: () {
-            // Navigator.push(
-            //   context,
-            //   MaterialPageRoute(
-            //     builder: (context) => EmpNotificationPage(),
-            //   ),
-            // );
-          },
-        )
-      ],
+      // actions: [
+      //   IconButton(
+      //     icon: const Icon(Icons.notifications, color: Colors.white),
+      //     onPressed: () {
+      //       // Navigator.push(
+      //       //   context,
+      //       //   MaterialPageRoute(
+      //       //     builder: (context) => EmpNotificationPage(),
+      //       //   ),
+      //       // );
+      //     },
+      //   )
+      // ],
     );
   }
 }
