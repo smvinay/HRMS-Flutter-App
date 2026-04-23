@@ -13,6 +13,7 @@ class HrHeader extends StatefulWidget implements PreferredSizeWidget {
 
 class _HrHeaderState extends State<HrHeader> {
   String employeeCode = "";
+  String _username = "HR";
 
   @override
   void initState() {
@@ -24,6 +25,7 @@ class _HrHeaderState extends State<HrHeader> {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       employeeCode = prefs.getString('employe_code') ?? "---";
+      _username = prefs.getString('username') ?? "- - -";
     });
   }
 
@@ -33,7 +35,7 @@ class _HrHeaderState extends State<HrHeader> {
       backgroundColor: const Color(0xFF0557A2),
       titleSpacing: 5,
       title: Text(
-        'HR',
+        _username,
         style: const TextStyle(color: Colors.white),
       ),
       leading: Builder(
@@ -44,19 +46,6 @@ class _HrHeaderState extends State<HrHeader> {
           },
         ),
       ),
-      // actions: [
-      //   IconButton(
-      //     icon: const Icon(Icons.notifications, color: Colors.white),
-      //     onPressed: () {
-      //       // Navigator.push(
-      //       //   context,
-      //       //   MaterialPageRoute(
-      //       //     builder: (context) => EmpNotificationPage(),
-      //       //   ),
-      //       // );
-      //     },
-      //   )
-      // ],
     );
   }
 }

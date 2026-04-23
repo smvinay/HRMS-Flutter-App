@@ -1,50 +1,36 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'ComingSoonPage.dart';
+import 'package:hive_flutter/adapters.dart';
+import 'package:hrms_attendify_app/splash_screen.dart';
+import 'employeePages/ApplyLeavePage.dart';
 import 'employeePages/AttendanceCal.dart';
-import 'employeePages/leaveCal.dart';
 import 'employeePages/profile_page.dart';
 import 'hrPages/HrVisitorsPage.dart';
 import 'hrPages/MyTeamPage.dart';
 import 'hrPages/hrEmpAtt.dart';
 import 'hrPages/hr_dashboard.dart';
-import 'visitorPages/VisitorDashboardPage.dart';
 import 'employeePages/home_page.dart';
 import 'login_page.dart';
 import 'visitorPages/VisitorsFooter.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final SharedPreferences prefs = await SharedPreferences.getInstance();
-
-  String? userId = prefs.getString('user_id');
-  String? levelId = prefs.getString('level_id');
-
-  String initialRoute;
-  if (userId == null || levelId == null) {
-    initialRoute = '/login';
-  } else if (levelId == '4') {
-    initialRoute = '/HrDashboard';
-  } else if (levelId == '7') {
-    initialRoute = '/VisitorsFooter';
-  } else {
-    initialRoute = '/home';
-  }
-
-  runApp(MyApp(initialRoute: initialRoute));
+  await Hive.initFlutter();
+  await Hive.openBox('attendanceBox');
+  runApp(MyApp(initialRoute: '/splash'));
 }
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 
 class MyApp extends StatelessWidget {
   final String initialRoute;
-
   const MyApp({super.key, required this.initialRoute});
-
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Sidebar App',
       debugShowCheckedModeBanner: false,
+      navigatorKey: navigatorKey,
 
       theme: ThemeData(
         primarySwatch: Colors.blue,
@@ -71,11 +57,12 @@ class MyApp extends StatelessWidget {
       // theme: ThemeData(primarySwatch: Colors.blue),
       initialRoute: initialRoute,
       routes: {
+        '/splash': (context) => const SplashScreen(),
         '/home': (context) => HomePage(),
         '/login': (context) => LoginPage(),
-          // employee login
+        // employee login
         '/emp_attendance_cal': (context) => AttendanceCal(),
-        '/emp_leave_cal': (context) => LeaveCal(),
+        '/emp_leave': (context) => ApplyLeavePage(),
         '/profile': (context) => const ProfilePage(),
         // visitor login
         '/VisitorsFooter': (context) => const VisitorsFooter(initialIndex: 2),
@@ -84,6 +71,7 @@ class MyApp extends StatelessWidget {
         '/myTeam': (context) => MyTeamPage(),
         '/hr_visitors': (context) => HrVisitorsPage(),
         '/hr_empatt': (context) => HrEmployeeAtt(),
+        '/hr_emp_att': (context) => HrEmployeeAtt(),
 
       },
     );

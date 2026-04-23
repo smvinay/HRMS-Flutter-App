@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:my_flutter_app/visitorPages/visitor_form_page.dart';
+import 'package:hrms_attendify_app/visitorPages/visitor_form_page.dart';
 import 'VisitorDashboardPage.dart';
 import 'VisitorDrawerPage.dart';
 import 'visitor_header.dart';
@@ -137,68 +137,66 @@ class _VisitorsFooterState extends State<VisitorsFooter> {
 
   @override
   Widget build(BuildContext context) {
+
     return Scaffold(
       appBar: const VisitorHeader(),
+      resizeToAvoidBottomInset: true,
       drawer: _selectedIndex == 2
           ? const VisitorDrawerPage(currentPage: "home")
           : const VisitorDrawerPage(currentPage: "visitors"),
       backgroundColor: Colors.white,
-      body: Column(
-        children: [
-          Expanded(
-            // Show dashboard when footer==Home, otherwise show PageView
-            child: _selectedIndex == 2
-                ? const VisitorDashboardPage()
-                : PageView(
-              controller: _pageController,
-              physics: const BouncingScrollPhysics(),
-              onPageChanged: (pageIdx) {
-                // Map PageView index -> footer index
-                final footerIndex = pageIdx >= 2 ? pageIdx + 1 : pageIdx;
-                setState(() => _selectedIndex = footerIndex);
-              },
-              children: pages,
-            ),
+
+      body: SafeArea(
+        child: _selectedIndex == 2
+            ? const VisitorDashboardPage()
+            : PageView(
+          controller: _pageController,
+          physics: const BouncingScrollPhysics(),
+          onPageChanged: (pageIdx) {
+            final footerIndex = pageIdx >= 2 ? pageIdx + 1 : pageIdx;
+            setState(() => _selectedIndex = footerIndex);
+          },
+          children: pages,
+        ),
+      ),
+
+      // ✅ FIXED FOOTER HERE
+      bottomNavigationBar: SafeArea(
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: const BoxDecoration(
+            border: Border(top: BorderSide(color: Color(0xFFE0E0E0))),
+            color: Colors.white,
           ),
+          child: Row(
+            children: [
+              Expanded(child: _footerItem(0)),
+              Expanded(child: _footerItem(1)),
 
-          // Footer bar
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            decoration: const BoxDecoration(
-              border: Border(top: BorderSide(color: Color(0xFFE0E0E0))),
-              color: Colors.white,
-            ),
-            child: Row(
-              children: [
-                Expanded(child: _footerItem(0)),
-                Expanded(child: _footerItem(1)),
-
-                // Center home button
-                Expanded(
-                  child: InkWell(
-                    onTap: () => onTabSelected(2),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF0557A2),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Icons.home, color: Colors.white),
+              Expanded(
+                child: InkWell(
+                  onTap: () => onTabSelected(2),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF0557A2),
+                          shape: BoxShape.circle,
                         ),
-                      ],
-                    ),
+                        child: const Icon(Icons.home, color: Colors.white),
+                      ),
+                    ],
                   ),
                 ),
+              ),
 
-                Expanded(child: _footerItem(3)),
-                Expanded(child: _footerItem(4)),
-              ],
-            ),
+              Expanded(child: _footerItem(3)),
+              Expanded(child: _footerItem(4)),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

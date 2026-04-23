@@ -1,117 +1,95 @@
-import 'dart:async';
-import 'dart:convert';
 import 'dart:collection';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
-import 'employee_welcome_overlay.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'socket_service.dart';
+import 'employee_welcome_overlay.dart';
 
 class EmployeeAttendanceService {
 
-  Timer? _timer;
+  static final EmployeeAttendanceService _instance =
+  EmployeeAttendanceService._internal();
 
-  /// Queue to show employees one by one
-  final Queue<Map<String, dynamic>> _employeeQueue = Queue();
+  factory EmployeeAttendanceService() => _instance;
 
+  EmployeeAttendanceService._internal();
+
+  final Queue<Map<String, dynamic>> _queue = Queue();
   bool _isShowing = false;
+  bool _initialized = false;
 
-  void start(BuildContext context) {
+  /// prevent duplicate users
+  final Set<String> _shownUsers = {};
 
-    _timer?.cancel();
+  /// socket reference
+  final SocketService _socketService = SocketService();
 
-    _timer = Timer.periodic(const Duration(seconds: 2), (timer) async {
+  void start(BuildContext context) async {
 
-      try {
+    if (_initialized) return; // prevent multiple init
+    _initialized = true;
 
-        final prefs = await SharedPreferences.getInstance();
+    final prefs = await SharedPreferences.getInstance();
+    final cid = prefs.getString('unique_code');
 
-        final apiKey = prefs.getString('apiKey');
-        final companyDb = prefs.getString('companyDb');
-        final cid = prefs.getString('cid');
-        final level_id = prefs.getString('level_id');
+    if (cid == null) return;
 
-        if (apiKey == null || companyDb == null || cid == null || level_id != '7') {
-          return;
-        }
+    /// connect socket
+    _socketService.connect(context, cid);
 
-        final url = Uri.parse(
-          "https://hrms.attendify.ai/index.php/MobileApi/getEmpAttMob",
-        );
+    /// listen to socket events
+    _socketService.socket.on("employee_checkin", (data) {
 
-        final response = await http.post(
-          url,
-          headers: {
-            'apiKey': apiKey,
-            'companyDb': companyDb,
-          },
-          body: {
-            "cid": cid
-          },
-        );
+      if (data == null) return;
 
-        if (response.statusCode == 200) {
+      final emp = Map<String, dynamic>.from(data);
 
-          final data = json.decode(response.body);
+      final userId = emp["userid"] ?? "";
 
-          // print(data);
+      /// avoid duplicate popup
+      if (_shownUsers.contains(userId)) return;
 
-          if (data is List && data.isNotEmpty) {
+      _shownUsers.add(userId);
 
-            /// add all employees to queue
-            for (var emp in data) {
-              _employeeQueue.add(emp);
-            }
+      _queue.add(emp);
 
-            /// start displaying if not already
-            _processQueue(context);
-
-          }
-
-        }
-
-      } catch (e) {
-        print(e);
-      }
-
+      _processQueue(context);
     });
-
   }
 
   void _processQueue(BuildContext context) async {
 
-    if (_isShowing || _employeeQueue.isEmpty) return;
+    if (_isShowing || _queue.isEmpty) return;
 
     _isShowing = true;
 
-    while (_employeeQueue.isNotEmpty) {
+    while (_queue.isNotEmpty) {
 
-      final emp = _employeeQueue.removeFirst();
+      final emp = _queue.removeFirst();
 
-      final name = emp["first_name"];
-      final checkInTime = emp["checkInTime"];
+      final name = emp["first_name"] ?? "";
       final userid = emp["userid"] ?? "";
-      final photo = emp["user_profile"] != null
+      final checkInTime = emp["checkInTime"] ?? "";
+      final photo = emp["profile_thumbnail"] != null
           ? "https://hrms.attendify.ai/photos/${emp["profile_thumbnail"]}"
           : "";
 
       EmployeeOverlayService().show(
-        context,
+        Navigator.of(context, rootNavigator: true).context,
         name.toString(),
         photo.toString(),
         checkInTime.toString(),
         userid.toString(),
       );
 
-      /// wait until overlay hides
       await Future.delayed(const Duration(seconds: 2));
     }
 
     _isShowing = false;
-
   }
 
   void stop() {
-    _timer?.cancel();
+    _socketService.disconnect();
+    _initialized = false;
+    _shownUsers.clear();
   }
-
 }

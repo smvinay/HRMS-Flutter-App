@@ -4,8 +4,6 @@ import 'package:dropdown_search/dropdown_search.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'VisitorDrawerPage.dart';
-import 'visitor_header.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:another_flushbar/flushbar.dart';
@@ -39,16 +37,15 @@ class _VisitorFormPageState extends State<VisitorFormPage>
   late Map<int, TextEditingController> emailControllers = {};
   late Map<int, TextEditingController> purposeControllers = {};
   late Map<int, TextEditingController> fromControllers = {};
-  Employee? _loggedInEmployee;
+
+  Map<int, bool> isSaving = {};
+
   @override
   void initState() {
     super.initState();
-
     WidgetsBinding.instance.addObserver(this);
-
     _loadVisitorData();
     loadEmployees();
-
     // start periodic background poll
     _startAutoRefresh();
   }
@@ -215,35 +212,36 @@ class _VisitorFormPageState extends State<VisitorFormPage>
 
   Future<void> loadEmployees() async {
     final prefs = await SharedPreferences.getInstance();
-    String? userId = prefs.getString('cid');
-    String? userName = prefs.getString('username');
-    String? logincode = prefs.getString('code');
+    String? cid = prefs.getString('cid');
+    String? userId = prefs.getString('user_id');
     String? apiKey = prefs.getString('apiKey');
     String? companyDb = prefs.getString('companyDb');
-    if (userId != null && apiKey != null && companyDb != null) {
+
+    if (cid != null && apiKey != null && companyDb != null) {
       try {
-        final employees =
-        await fetchEmployees(userId, apiKey, companyDb);
+        final employees = await fetchEmployees(cid, apiKey, companyDb);
 
-        Employee? loggedUser;
+        Employee? defaultEmployee;
 
-        // if (loggedUser == null) {
-          loggedUser = Employee(
-            id: userId,
-            employeCode:logincode ?? "SELF",
-            firstName: userName ?? "Receptionist",
-            lastName: "",
-            userProfile: null,
-            profileThumbnail: null,
-          );
+        for (var emp in employees) {
+          if (emp.id.toString() == userId) {
+            defaultEmployee = emp;
+            break;
+          }
+        }
 
-          employees.insert(0, loggedUser);
-        // }
         setState(() {
           _employees = employees;
-          _loggedInEmployee = loggedUser;
+
+          // set default selected (index 0 or your needed index)
+          if (defaultEmployee != null) {
+            _selectedEmployeeByIndex[0] = defaultEmployee;
+          }
         });
-      } catch (_) {}
+
+      } catch (e) {
+        print(e);
+      }
     }
   }
 
@@ -324,7 +322,6 @@ class _VisitorFormPageState extends State<VisitorFormPage>
     final isTablet = size.width > 650;
 
 
-
     return Row(
       children: [
 
@@ -343,6 +340,7 @@ class _VisitorFormPageState extends State<VisitorFormPage>
             itemBuilder: (context, index) {
               final v = _visitors[index];
               final isSelected = index == _selectedIndex;
+              final time = v.checkInTime?.split(" ").last ;
 
               return GestureDetector(
                 onTap: () {
@@ -406,7 +404,7 @@ class _VisitorFormPageState extends State<VisitorFormPage>
                                 const SizedBox(height: 4),
 
                                 Text(
-                                  v.checkInTime?.split(" ").last ?? "-",
+                                  _formatTime12(time!),
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: Colors.grey.shade600,
@@ -466,6 +464,20 @@ class _VisitorFormPageState extends State<VisitorFormPage>
     );
   }
 
+  String _formatTime12(String time) {
+    if (time.isEmpty) return "";
+
+    final parts = time.split(":");
+    int hour = int.parse(parts[0]);
+    String minute = parts[1];
+
+    String period = hour >= 12 ? "PM" : "AM";
+    int hour12 = hour % 12 == 0 ? 12 : hour % 12;
+
+    return "$hour12:$minute $period";
+  }
+
+
   Widget _buildTopVisitorScroller(bool isTablet , double scale) {
     final cardWidth = isTablet ? 110.0 : 110.0;
 
@@ -515,11 +527,6 @@ class _VisitorFormPageState extends State<VisitorFormPage>
                     ? const Color(0xFFE8F1FF) // ✅ Light blue active color
                     : Colors.white,
                 borderRadius: BorderRadius.circular(8),
-                // border: Border.all(
-                //   color: isSelected
-                //       ? const Color(0xFF0557A2) : Colors.white,
-                //   width: isSelected ? 1.5 : 1,
-                // ),
                 boxShadow: [
                   BoxShadow(
                     color: isSelected
@@ -565,7 +572,7 @@ class _VisitorFormPageState extends State<VisitorFormPage>
 
                       /// TIME
                       Text(
-                        displayTime,
+                        _formatTime12(displayTime),
                         style: TextStyle(
                           fontSize: _s(12, scale),
                           color: Colors.grey,
@@ -736,8 +743,14 @@ class _VisitorFormPageState extends State<VisitorFormPage>
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () async {
+                onPressed: isSaving[index] == true
+                    ? null
+                    : () async {
+                  setState(() => isSaving[index] = true);
+
                   await submitVisitorData(context, visitor, index);
+
+                  setState(() => isSaving[index] = false);
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF0557a2),
@@ -747,8 +760,17 @@ class _VisitorFormPageState extends State<VisitorFormPage>
                   ),
                   elevation: _s(2, scale),
                 ),
-                child: Text(
-                  'Save Visitor',
+                child: isSaving[index] == true
+                    ? const SizedBox(
+                  height: 18,
+                  width: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+                    : Text(
+                  isSaving[index] == true ? "Saving..." : "Save Visitor",
                   style: TextStyle(
                     fontSize: _s(16, scale),
                     fontWeight: FontWeight.w600,
@@ -951,7 +973,7 @@ class _VisitorFormPageState extends State<VisitorFormPage>
 
       child: DropdownSearch<Employee>(
         items: _employees,
-        selectedItem: _selectedEmployeeByIndex[index] ?? _loggedInEmployee,
+        selectedItem: _selectedEmployeeByIndex[index],
 
         itemAsString: (Employee e) =>
         "${e.firstName} ${e.lastName == "null" ? "" : e.lastName ?? ""}",
@@ -960,7 +982,6 @@ class _VisitorFormPageState extends State<VisitorFormPage>
           isVisible: false,
         ),
 
-        /// SELECTED ITEM VIEW
         dropdownBuilder: (context, selectedItem) {
 
           if (selectedItem == null) {
@@ -1128,7 +1149,7 @@ class _VisitorFormPageState extends State<VisitorFormPage>
       String userId, String apiKey, String companyDb) async {
     final response = await http.get(
       Uri.parse(
-          'https://hrms.attendify.ai/index.php/Dashboard/getUsers?user_id=$userId'),
+          'https://hrms.attendify.ai/index.php/MobileApi/getUsersApi?user_id=$userId'),
       headers: {
         'apiKey': apiKey,
         'companyDb': companyDb,

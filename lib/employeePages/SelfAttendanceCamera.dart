@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ import 'package:intl/intl.dart';
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 import 'package:another_flushbar/flushbar.dart';
+import 'package:http_parser/http_parser.dart';
 
 
 class SelfAttendanceCamera extends StatefulWidget {
@@ -35,11 +37,43 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
   bool userInLocation = true; // Update based on actual geofence logic
   bool _isLoaderShowing = false;
   bool _isUploading = false;
+  String ackKey = "selfie_acknowledged";
+  String policyMessage = "";
+  String policyTitle = "";
+  int policyId = 0;
+  String ackStatusKey = "selfie_ack_status";
+  String ackVersionKey = "selfie_ack_version";
 
   @override
   void initState() {
     super.initState();
     attendanceStatus = widget.attStatus ?? ""; // fallback if null
+  }
+
+  Future<void> loadPolicy() async {
+    final prefs = await SharedPreferences.getInstance();
+    final apiKey = prefs.getString('apiKey') ?? "";
+    final companyDb = prefs.getString('companyDb') ?? "";
+
+    final res = await http.get(
+      Uri.parse("https://hrms.attendify.ai/index.php/MobileApi/get_selfie_policy"),
+      headers: {
+        "apiKey": apiKey,
+        "companyDb": companyDb,
+      },
+    );
+
+    final data = jsonDecode(res.body);
+
+    print('data $data');
+
+    if (data['status'] == true && data['data'] != null ) {
+      setState(() {
+        policyTitle = data['data']['title'] ?? "";
+        policyMessage = data['data']['message'] ?? "";
+        policyId = int.parse(data['data']['id'].toString());
+      });
+    }
   }
 
   @override
@@ -85,7 +119,7 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
 
     final XFile? pickedImage = await _picker.pickImage(
       source: ImageSource.camera,
-      imageQuality: 90,
+      imageQuality: 95,
       preferredCameraDevice: CameraDevice.front,
     );
 
@@ -95,7 +129,7 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
       File imageFile = File(pickedImage.path);
 
       try {
-        Position position = await _determinePosition();
+        Position position = await getStoredOrFetchLocation();
         latitude = position.latitude;
         longitude = position.longitude;
       } catch (e) {
@@ -103,10 +137,10 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
         longitude = 0;
       }
 
-      String address = "Fetching location...";
+      String address;
 
       try {
-        address = await getAddressFromGeoapify(latitude, longitude);
+        address = await getStoredAddress();
       } catch (e) {
         address = "Location unavailable";
       }
@@ -127,22 +161,32 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
     }
   }
 
+  Future<File> convertToJpg(File file) async {
+    final targetPath = file.path.replaceAll(RegExp(r'\.\w+$'), '.jpg');
+
+    final result = await FlutterImageCompress.compressAndGetFile(
+      file.absolute.path,
+      targetPath,
+      format: CompressFormat.jpeg,
+      quality: 95,
+    );
+
+    return File(result!.path);
+  }
+
   Future<File> _addWatermark(File imageFile, double lat, double long ,String address,) async {
     final bytes = await imageFile.readAsBytes();
     img.Image original = img.decodeImage(bytes)!;
 
-    // =========================
-    // ✅ STEP 1: CROP FIRST (9:11)
-    // =========================
     double targetRatio = 9 / 11;
 
     int newWidth = original.width;
-    int newHeight = (newWidth / targetRatio).toInt();
+    int newHeight = original.height;
 
-    if (newHeight > original.height) {
-      newHeight = original.height;
-      newWidth = (newHeight * targetRatio).toInt();
-    }
+    // if (newHeight > original.height) {
+    //   newHeight = original.height;
+    //   newWidth = (newHeight * targetRatio).toInt();
+    // }
 
     int xOffset = (original.width - newWidth) ~/ 2;
     int yOffset = (original.height - newHeight) ~/ 2;
@@ -173,19 +217,19 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
     String line1 = '';
     String line2 = '';
 
-    if (parts.length >= 3) {
+    if (parts.length >= 4) {
       // 🔥 Last 3 parts → line2
-      line2 = parts.sublist(parts.length - 3).join(', ');
+      line2 = parts.sublist(parts.length - 4).join(', ');
 
       // 🔥 Remaining → line1
-      line1 = parts.sublist(0, parts.length - 3).join(', ');
+      line1 = parts.sublist(0, parts.length - 4).join(', ');
     } else {
       // fallback
       line1 = address;
     }
 
 // Text
-    final text1 = 'Date $date   Time $time';
+    final text1 = '$date  $time';
     final text2 = 'Lat ${lat.toStringAsFixed(5)}  Lon ${long.toStringAsFixed(5)}';
     final text3 = line1;
     final text4 = line2;
@@ -252,7 +296,7 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
     final path = '${tempDir.path}/watermarked_${DateTime.now().millisecondsSinceEpoch}.jpg';
 
     File finalImage = File(path)
-      ..writeAsBytesSync(img.encodeJpg(original, quality: 90));
+      ..writeAsBytesSync(img.encodeJpg(original, quality: 95));
 
     return finalImage;
   }
@@ -266,7 +310,7 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
 
     try {
       final response =
-      await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
+      await http.get(Uri.parse(url)).timeout(const Duration(seconds: 6));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -292,7 +336,6 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
           if (address.contains('NH')) {
             address = address.replaceAll('NH', 'National Highway ');
           }
-
           return address;
         }
       }
@@ -341,26 +384,56 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
     request.fields['capture_range'] = captureRange;
 
     request.files.add(
-      await http.MultipartFile.fromPath('image', imageFile.path),
+      await http.MultipartFile.fromPath(
+        'image',
+        imageFile.path,
+        contentType: MediaType('image', 'jpeg'),
+      ),
     );
 
     try {
       var response = await request.send();
 
       final responseBody = await response.stream.bytesToString();
-      debugPrint("API RESPONSE: $responseBody");
 
       if (response.statusCode == 200 && responseBody.isNotEmpty) {
 
-        dynamic result = jsonDecode(responseBody);
+        dynamic result;
 
-        /// If API returns string JSON
-        if (result is String) {
-          result = jsonDecode(result);
+        try {
+          result = jsonDecode(responseBody);
+        } catch (e) {
+          debugPrint("JSON PARSE ERROR: $e");
+          result = {};
         }
 
-        final type = result['type'];
-        final status = result['status'];
+// handle [] case
+        if (result is List) {
+          debugPrint("API returned LIST instead of MAP");
+          result = {};
+        }
+
+// handle string JSON
+        if (result is String) {
+          try {
+            result = jsonDecode(result);
+          } catch (_) {
+            result = {};
+          }
+        }
+
+// final safety
+        if (result is! Map) {
+          result = {};
+        }
+
+        /// If API returns string JSON
+        // if (result is String) {
+        //   result = jsonDecode(result);
+        // }
+
+        final type = result['type']?.toString() ?? '';
+        final status = result['status']?.toString() ?? '';
 
         if (type == "attendance" && status == "success") {
 
@@ -439,6 +512,7 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
         Colors.red.shade300,
       );
 
+
     } finally {
       _isUploading = false;
       if (_isLoaderShowing) _hideLoading();
@@ -446,12 +520,114 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
     }
   }
 
+  Future<String> getStoredAddress() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    String? address = prefs.getString('address');
+
+    // ✅ If address missing OR placeholder
+    if (address == null || address.trim().isEmpty || address == "...") {
+
+      //  Try fetching fresh immediately
+      double? lat = prefs.getDouble('latitude');
+      double? lng = prefs.getDouble('longitude');
+
+      if (lat != null && lng != null) {
+        try {
+          String newAddress = await getAddressFromGeoapify(lat, lng);
+
+          await prefs.setString('address', newAddress);
+
+          return newAddress;
+        } catch (_) {}
+      }
+
+      return "Location not available";
+    }
+
+    return address;
+  }
+
+  Future<Position> getStoredOrFetchLocation() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    double? lat = prefs.getDouble('latitude');
+    double? lng = prefs.getDouble('longitude');
+    int? lastTime = prefs.getInt('location_time');
+
+    bool shouldRefresh = true;
+
+    if (lastTime != null) {
+      final diff = DateTime.now().millisecondsSinceEpoch - lastTime;
+      shouldRefresh = diff > (10 * 60 * 1000); // 10 minutes
+    }
+
+    // 🔥 Background refresh (only if needed)
+    if (shouldRefresh) {
+      await updateLocationAndAddressInBackground(); // don't await
+    }
+
+    // ✅ Return cached instantly
+    if (lat != null && lng != null) {
+      return Position(
+        latitude: lat,
+        longitude: lng,
+        timestamp: DateTime.now(),
+        accuracy: 0,
+        altitude: 0,
+        heading: 0,
+        speed: 0,
+        speedAccuracy: 0,
+        altitudeAccuracy: 0,
+        headingAccuracy: 0,
+      );
+    }
+
+    //  First time → fetch + update
+    Position position = await _determinePosition();
+
+    await updateLocationAndAddressInBackground(); // async store
+
+    return position;
+  }
+
+  Future<void> updateLocationAndAddressInBackground() async {
+    try {
+      Position position = await _determinePosition();
+
+      final prefs = await SharedPreferences.getInstance();
+
+      await prefs.setDouble('latitude', position.latitude);
+      await prefs.setDouble('longitude', position.longitude);
+
+      // 🔥 IMPORTANT: store temporary value first
+      await prefs.setString('address', "...");
+
+      String address = await getAddressFromGeoapify(
+        position.latitude,
+        position.longitude,
+      );
+
+      await prefs.setString('address', address);
+
+      await prefs.setInt(
+        'location_time',
+        DateTime.now().millisecondsSinceEpoch,
+      );
+    } catch (e) {
+      // silent
+    }
+  }
+
   Future<Position> _determinePosition() async {
     LocationPermission permission;
+
     permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
       permission = await Geolocator.requestPermission();
     }
+
     return await Geolocator.getCurrentPosition();
   }
 
@@ -483,11 +659,232 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
     return Center(
       child: IconButton(
         icon: Icon(Icons.camera_alt, size: 45, color: Colors.white),
-        onPressed: () {
-          _showAttendanceConfirmDialog();
+
+        onPressed: () async {
+          final prefs = await SharedPreferences.getInstance();
+
+          await loadPolicy();
+
+          String savedVersion = prefs.getString(ackVersionKey) ?? "";
+          bool accepted = prefs.getBool(ackStatusKey) ?? false;
+
+          /// ✅ compare version
+          if (savedVersion == policyId.toString() && accepted) {
+            _showAttendanceConfirmDialog();
+          } else {
+            _showAcknowledgementDialog();
+          }
         },
       ),
     );
+  }
+
+  void _showAcknowledgementDialog() async {
+    final prefs = await SharedPreferences.getInstance();
+    String companyName = prefs.getString('comp_name') ?? "Company";
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return _ackDialogUI(companyName);
+      },
+    );
+  }
+
+  bool isChecked = false;
+
+  Widget _ackDialogUI(String companyName) {
+    return StatefulBuilder(
+      builder: (context, setState) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 20, 18, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.blue.withOpacity(0.08),
+                  ),
+                  child: Icon(
+                    Icons.verified_user,
+                    size: 28,
+                    color: Colors.blue.shade600,
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                Text(
+                  policyTitle.isNotEmpty
+                      ? policyTitle
+                      : "Selfie Attendance Policy",
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+
+                const SizedBox(height: 6),
+
+                if (companyName.isNotEmpty)
+                  Text(
+                    companyName,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+
+                const SizedBox(height: 14),
+
+                Text(
+                  policyMessage.isNotEmpty
+                      ? policyMessage
+                      : "This app captures your selfie for attendance marking. The image will be securely stored and used only for verification purposes.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    height: 1.4,
+                    color: Colors.grey.shade800,
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                /// CHECKBOX
+                Row(
+                  children: [
+                    Checkbox(
+                      value: isChecked,
+                      onChanged: (val) {
+                        setState(() {
+                          isChecked = val ?? false;
+                        });
+                      },
+                    ),
+                    Expanded(
+                      child: Text(
+                        "I agree to the above acknowledgement and consent to selfie-based attendance.",
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 16),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          elevation: 0,
+                          side: BorderSide(color: Colors.grey.shade300),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ).copyWith(
+                          overlayColor:
+                          MaterialStateProperty.all(Colors.transparent),
+                        ),
+                        onPressed: () async {
+                          Navigator.pop(context);
+                          await _handleAck(false);
+                        },
+                        child: const Text("Reject"),
+                      ),
+                    ),
+
+                    const SizedBox(width: 10),
+
+                    Expanded(
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          elevation: 0,
+                          backgroundColor:
+                          isChecked ? Colors.blue : Colors.grey,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ).copyWith(
+                          overlayColor:
+                          MaterialStateProperty.all(Colors.transparent),
+                        ),
+                        onPressed: isChecked
+                            ? () async {
+                          Navigator.pop(context);
+                          await _handleAck(true);
+                        }
+                            : null,
+                        child: const Text(
+                          "Accept",
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _handleAck(bool accepted) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // ✅ store version + status
+    await prefs.setBool(ackStatusKey, accepted);
+    await prefs.setString(ackVersionKey, policyId.toString());
+
+    // ✅ send to backend
+    await _sendAckToServer(accepted);
+
+    if (accepted) {
+      _showAttendanceConfirmDialog();
+    }
+  }
+
+  Future<void> _sendAckToServer(bool accepted) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      final apiKey = prefs.getString('apiKey') ?? "";
+      final companyDb = prefs.getString('companyDb') ?? "";
+      final userId = prefs.getString('user_id') ?? "";
+      var response = await http.post(
+        Uri.parse("https://hrms.attendify.ai/index.php/MobileApi/update_selfie_acknowledged"),
+        headers: {
+          "apiKey": apiKey,
+          "companyDb": companyDb,
+        },
+          body: {
+            "user_id": userId,
+            "status": accepted ? "1" : "0",
+            "policy_id": policyId.toString(),
+          },
+      );
+      if (response.statusCode == 200) {
+        debugPrint("Ack updated");
+      } else {
+        debugPrint("Ack failed");
+      }
+    } catch (e) {
+      debugPrint("Ack error: $e");
+    }
   }
 
   void _showAttendanceConfirmDialog() {
@@ -699,12 +1096,42 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
 
   void _showflashbar(String message, Color color) {
     Flushbar(
-      message: message,
+      messageText: Row(
+        children: [
+          Icon(
+            Icons.info_outline,
+            color: Colors.white.withOpacity(0.9),
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
       duration: const Duration(seconds: 2),
-      backgroundColor: color,
-      borderRadius: BorderRadius.circular(8),
-      margin: const EdgeInsets.all(12),
+      backgroundColor: color.withOpacity(0.9),
+      borderRadius: BorderRadius.circular(16),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       flushbarPosition: FlushbarPosition.TOP,
+      boxShadows: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.1),
+          blurRadius: 10,
+          offset: const Offset(0, 4),
+        ),
+      ],
+      animationDuration: const Duration(milliseconds: 400),
+      forwardAnimationCurve: Curves.easeOut,
+      reverseAnimationCurve: Curves.easeIn,
     ).show(context);
   }
 

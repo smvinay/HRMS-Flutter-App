@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:hrms_attendify_app/visitorPages/visitor_header.dart';
 import 'package:http/http.dart' as http;
 import 'package:another_flushbar/flushbar.dart';
-import 'package:my_flutter_app/visitorPages/visitor_header.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'VisitorDrawerPage.dart';
@@ -122,6 +122,42 @@ class _EmployeeAttendancePageState extends State<EmployeeAttendancePage> {
     );
   }
 
+  String getDisplayTime(Map item) {
+    String status = item['status_text'] ?? "";
+
+    if (status == "Present" || status == "Half Day") {
+      String first = item['first_check_in'] ?? "";
+      String last = item['last_check_in'] ?? "";
+
+      if (first.isEmpty && last.isEmpty) {
+        return "";
+      }
+
+      if (first.isNotEmpty && last.isNotEmpty) {
+        return "${formatTime(first)} - ${formatTime(last)}";
+      }
+
+      if (first.isNotEmpty) {
+        return formatTime(first);
+      }
+      return "";
+    }
+
+    if (status == "IN" || status == "OUT") {
+      return item['status_time'] ?? "--";
+    }
+
+    return "";
+  }
+  String formatTime(String dateTime) {
+    try {
+      DateTime dt = DateTime.parse(dateTime);
+      return TimeOfDay.fromDateTime(dt).format(context);
+    } catch (e) {
+      return "--";
+    }
+  }
+
   Widget _buildEmployeeCard(dynamic e, double scale) {
 
     final status = e["status_text"] ?? "";
@@ -178,7 +214,7 @@ class _EmployeeAttendancePageState extends State<EmployeeAttendancePage> {
               children: [
 
                 Text(
-                  e["status_time"] ?? " - ",
+                  getDisplayTime(e),
                   style: TextStyle(
                     fontSize: _s(12, scale),
                   ),

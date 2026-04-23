@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "646449780595",
+    "project_id": "hrms-attendify",
+    "storage_bucket": "hrms-attendify.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:646449780595:android:3b83b811249bcb3f921706",
+        "android_client_info": {
+          "package_name": "com.example.hrms_attendify_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBgGuUne-Fs2LvJ-hP3vxd0NODG0BJi7Qg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

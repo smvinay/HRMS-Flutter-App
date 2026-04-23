@@ -162,6 +162,8 @@ class _CheckInPageState extends State<CheckInPage> with TickerProviderStateMixin
 
           if (v["user_approve_time"] != null) {
             time = v["user_approve_time"].split(" ")[1];
+          }else if (v["form_submit_time"] != null) {
+            time = v["form_submit_time"].split(" ")[1];
           }else if (v["check_in_time"] != null) {
             time = v["check_in_time"].split(" ")[1];
           }
@@ -170,7 +172,7 @@ class _CheckInPageState extends State<CheckInPage> with TickerProviderStateMixin
             toMeet = v["user_first_name"];
           }
 
-          final photo = (v["guest_photo"] ?? "").toString();
+          final photo = (v["image_path"] ?? "").toString();
           final guestId = (v["guestid"] ?? "").toString();
 
           return _visitorListCard(
@@ -227,7 +229,7 @@ class _CheckInPageState extends State<CheckInPage> with TickerProviderStateMixin
                 borderRadius: BorderRadius.circular(_s(8, scale)),
                 child: Image.network(
                   photo.isNotEmpty
-                      ? "https://hrms.attendify.ai/guest_faces/$photo"
+                      ? "https://hrms.attendify.ai/guest_imgs/$photo"
                       : 'https://via.placeholder.com/100',
                   width: _s(72, scale),
                   height: _s(72, scale),
@@ -320,7 +322,7 @@ class _CheckInPageState extends State<CheckInPage> with TickerProviderStateMixin
                         Icon(Icons.access_time, size: _s(14, scale), color: Colors.grey),
                         SizedBox(width: _s(6, scale)),
                         Text(
-                          time,
+                          _formatTime12(time),
                           style: TextStyle(fontSize: _s(13, scale), color: Colors.grey[700]),
                         ),
                       ],
@@ -336,6 +338,20 @@ class _CheckInPageState extends State<CheckInPage> with TickerProviderStateMixin
       ),
     );
   }
+
+  String _formatTime12(String time) {
+    if (time.isEmpty) return "";
+
+    final parts = time.split(":");
+    int hour = int.parse(parts[0]);
+    String minute = parts[1];
+
+    String period = hour >= 12 ? "PM" : "AM";
+    int hour12 = hour % 12 == 0 ? 12 : hour % 12;
+
+    return "$hour12:$minute $period";
+  }
+
 
   void _showVisitorDetailsSheet(String name, String phone, String time, String toMeet, String photo) {
     showModalBottomSheet(
@@ -354,7 +370,7 @@ class _CheckInPageState extends State<CheckInPage> with TickerProviderStateMixin
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
                     child: Image.network(
-                      photo.isNotEmpty ? "https://hrms.attendify.ai/guest_faces/$photo" : 'https://via.placeholder.com/100',
+                      photo.isNotEmpty ? "https://hrms.attendify.ai/guest_imgs/$photo" : 'https://via.placeholder.com/100',
                       width: 70,
                       height: 70,
                       fit: BoxFit.cover,

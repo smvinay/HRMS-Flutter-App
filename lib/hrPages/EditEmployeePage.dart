@@ -64,29 +64,59 @@ class _EditEmployeePageState extends State<EditEmployeePage> {
   }
 
   Future<void> pickReferenceImage(ImageSource source) async {
-
     final XFile? image = await picker.pickImage(source: source);
-
     if (image == null) return;
 
+    String path = image.path.toLowerCase();
+
+    /// ✅ FILE TYPE VALIDATION
+    if (!(path.endsWith('.jpg') ||
+        path.endsWith('.jpeg') ||
+        path.endsWith('.png'))) {
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Only JPG and PNG images are allowed"),
+        ),
+      );
+      return;
+    }
+
     File file = File(image.path);
+
+    /// ✅ FILE SIZE VALIDATION (1MB)
+    final fileSize = await file.length();
+    if (fileSize > 4 * 1024 * 1024) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Image must be less than 4MB"),
+        ),
+      );
+      return;
+    }
 
     setState(() {
       isUploadingRef = true;
     });
 
-    if (employee != null) {
-      await uploadReferenceImages(
-        [file],
-        employee!["employe_code"],
-        employee!["faceApiFolderName"],
-        referencePhotos.join(','),
+    try {
+      if (employee != null) {
+        await uploadReferenceImages(
+          [file],
+          employee!["employe_code"],
+          employee!["faceApiFolderName"],
+          referencePhotos.join(','),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Upload failed")),
       );
+    } finally {
+      setState(() {
+        isUploadingRef = false;
+      });
     }
-
-    setState(() {
-      isUploadingRef = false;
-    });
   }
 
   Future<void> uploadReferenceImages(
@@ -184,37 +214,6 @@ class _EditEmployeePageState extends State<EditEmployeePage> {
     );
   }
 
-  void _showProfilePickerOptions() {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) {
-        return SafeArea(
-          child: Wrap(
-            children: [
-
-              ListTile(
-                leading: const Icon(Icons.camera_alt),
-                title: const Text("Open Camera"),
-                onTap: () {
-                  Navigator.pop(context);
-                  pickProfileImage(ImageSource.camera);
-                },
-              ),
-
-              ListTile(
-                leading: const Icon(Icons.photo),
-                title: const Text("Upload from Gallery"),
-                onTap: () {
-                  Navigator.pop(context);
-                  pickProfileImage(ImageSource.gallery);
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
 
   Future pickProfileImage(ImageSource source) async {
 
@@ -330,18 +329,6 @@ class _EditEmployeePageState extends State<EditEmployeePage> {
                       ? FileImage(profileImage!)
                       : NetworkImage(profile) as ImageProvider,
                 ),
-
-                Positioned(
-                  bottom: 0,
-                  right: 0,
-                  child: GestureDetector(
-                    onTap: _showProfilePickerOptions,
-                    child: const CircleAvatar(
-                      radius: 18,
-                      child: Icon(Icons.camera_alt, size: 18),
-                    ),
-                  )
-                )
               ],
             ),
 

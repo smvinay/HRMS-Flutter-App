@@ -103,54 +103,55 @@ class _ArchivePageState extends State<ArchivePage> {
     _calcScaleFromWidth(MediaQuery.of(context).size.width);
 
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       appBar: const VisitorHeader(),
       drawer: const VisitorDrawerPage(currentPage: "archive"),
       body: Column(
         children: [
 
           /// FILTER DROPDOWN
-          // Padding(
-          //   padding: EdgeInsets.all(_s(12, scale)),
-          //   child: DropdownButtonFormField<String>(
-          //     value: selectedFilter,
-          //     decoration: InputDecoration(
-          //       border: OutlineInputBorder(
-          //         borderRadius: BorderRadius.circular(_s(10, scale)),
-          //       ),
-          //       contentPadding:
-          //       EdgeInsets.symmetric(horizontal: _s(12, scale)),
-          //     ),
-          //     items: const [
-          //
-          //       DropdownMenuItem(
-          //         value: "all",
-          //         child: Text("All"),
-          //       ),
-          //
-          //       DropdownMenuItem(
-          //         value: "archive",
-          //         child: Text("Rejected By Camera"),
-          //       ),
-          //
-          //       DropdownMenuItem(
-          //         value: "rejected",
-          //         child: Text("Rejected By Host"),
-          //       ),
-          //
-          //       DropdownMenuItem(
-          //         value: "merged",
-          //         child: Text("Merged"),
-          //       ),
-          //
-          //     ],
-          //     onChanged: (value) {
-          //       setState(() {
-          //         selectedFilter = value!;
-          //       });
-          //       loadVisitors();
-          //     },
-          //   ),
-          // ),
+          Padding(
+            padding: EdgeInsets.all(_s(12, scale)),
+            child: DropdownButtonFormField<String>(
+              value: selectedFilter,
+              decoration: InputDecoration(
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(_s(10, scale)),
+                ),
+                contentPadding:
+                EdgeInsets.symmetric(horizontal: _s(12, scale)),
+              ),
+              items: const [
+
+                DropdownMenuItem(
+                  value: "all",
+                  child: Text("All"),
+                ),
+
+                DropdownMenuItem(
+                  value: "archive",
+                  child: Text("Rejected By Camera"),
+                ),
+
+                DropdownMenuItem(
+                  value: "rejected",
+                  child: Text("Rejected By Host"),
+                ),
+
+                // DropdownMenuItem(
+                //   value: "merged",
+                //   child: Text("Merged"),
+                // ),
+
+              ],
+              onChanged: (value) {
+                setState(() {
+                  selectedFilter = value!;
+                });
+                loadVisitors();
+              },
+            ),
+          ),
 
           Expanded(
             child: loading
@@ -187,7 +188,8 @@ class _ArchivePageState extends State<ArchivePage> {
 
                     String time = "";
                     if (v["check_in_time"] != null) {
-                      time = v["check_in_time"].split(" ")[1];
+                      String timeval = v["check_in_time"].split(" ")[1]; // "09:30:00"
+                      time = _formatTime(timeval);
                     }
 
                     return _buildVisitorListCard(
@@ -197,6 +199,7 @@ class _ArchivePageState extends State<ArchivePage> {
                       time,
                       v["guest_photo"],
                       v["guestid"],
+                      v["id"],
                       v["status"],
                       index,
                       scale,
@@ -210,6 +213,24 @@ class _ArchivePageState extends State<ArchivePage> {
         ],
       ),
     );
+  }
+
+  String _formatTime(String? timeStr) {
+    if (timeStr == null || timeStr.isEmpty) return "- - -";
+
+    try {
+      final parts = timeStr.split(":");
+      int hour = int.parse(parts[0]);
+      String minute = parts[1];
+
+      final period = hour >= 12 ? 'PM' : 'AM';
+      final hour12 = hour % 12 == 0 ? 12 : hour % 12;
+
+      return '$hour12:${minute.padLeft(2, '0')} $period';
+    } catch (e) {
+      print("Time parsing error: $e");
+      return "- - -";
+    }
   }
 
   void _showflashbar(String message, Color color) {
@@ -230,6 +251,7 @@ class _ArchivePageState extends State<ArchivePage> {
       String time,
       String photo,
       String guestId,
+      String guestRecordId,
       String status,
       int index,
       double scale,
@@ -345,42 +367,82 @@ class _ArchivePageState extends State<ArchivePage> {
           ],
         ),
 
-        trailing: status == "2"
-            ? Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: _s(10, scale),
-            vertical: _s(5, scale),
-          ),
-          decoration: BoxDecoration(
-            color: Colors.red.shade100,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Text(
-            "Rejected",
-            style: TextStyle(
-              color: Colors.red,
-              fontSize: _s(12, scale),
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        )
-            : IconButton(
-          icon: const Icon(Icons.unarchive, color: Colors.red),
-          onPressed: () {
-            _removeArchive(guestId, index);
-          },
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+
+            // ✅ SHOW ARCHIVE BUTTON BASED ON CONDITION
+            // if (status != "2") // you can change condition if needed
+              IconButton(
+                icon: const Icon(Icons.unarchive, color: Colors.green),
+                onPressed: () {
+                  _confirmRemoveArchive(guestId,guestRecordId, index);
+                },
+              ),
+
+            // Existing rejected badge
+            if (status == "2")
+              Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: _s(10, scale),
+                  vertical: _s(5, scale),
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade100,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  "Rejected",
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontSize: _s(12, scale),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
   }
 
-  Future<void> _removeArchive(String guestId, int index) async {
+  void _confirmRemoveArchive(String guestId,String guestRecordId, int index) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Confirm"),
+          content: const Text("Remove from archive and move to form page?"),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Cancel"),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _removeArchive(guestId,guestRecordId, index);
+              },
+              child: const Text("Yes"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _removeArchive(String guestId,String guestRecordId, int index) async {
     final prefs = await SharedPreferences.getInstance();
     final apiKey = prefs.getString('apiKey');
     final companyDb = prefs.getString('companyDb');
     if (apiKey == null || companyDb == null) return;
+
+    print(guestId);
+    print(guestRecordId);
+
     final url = Uri.parse(
         "https://hrms.attendify.ai/index.php/Guest/markArchiveVisitor");
+
     try {
       final response = await http.post(
         url,
@@ -390,18 +452,26 @@ class _ArchivePageState extends State<ArchivePage> {
         },
         body: {
           'guestid': guestId,
-          'flag': "0", // remove archive
+          'guestRecordId': guestRecordId,
+          'flag': "0",
         },
       );
+
       final data = json.decode(response.body);
+
       if (data['status'] == true) {
+
         setState(() {
           visitors.removeAt(index);
         });
+
         _showflashbar("Removed from archive", Colors.green.shade300);
+
+
       } else {
         _showflashbar("Failed", Colors.red.shade300);
       }
+
     } catch (e) {
       _showflashbar("Network error", Colors.red.shade300);
     }

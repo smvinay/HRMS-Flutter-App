@@ -79,7 +79,6 @@ class _HrVisitorsPageState extends State<HrVisitorsPage>
     if (list.isEmpty) {
       return const Center(child: Text("No Visitors"));
     }
-
     return RefreshIndicator(
       onRefresh: loadVisitors,
       child: ListView.builder(
@@ -90,6 +89,7 @@ class _HrVisitorsPageState extends State<HrVisitorsPage>
         },
       ),
     );
+
   }
 
   /// STATUS CHIP
@@ -111,9 +111,55 @@ class _HrVisitorsPageState extends State<HrVisitorsPage>
     );
   }
 
+  String _formatTime(String? dateTimeStr) {
+    if (dateTimeStr == null || dateTimeStr.isEmpty) return "- - -";
+
+    try {
+      final dateTime = DateTime.parse(dateTimeStr);
+      final hour = dateTime.hour;
+      final minute = dateTime.minute.toString().padLeft(2, '0');
+      final period = hour >= 12 ? 'PM' : 'AM';
+      final hour12 = hour % 12 == 0 ? 12 : hour % 12;
+
+      return '$hour12:$minute $period';
+    } catch (e) {
+      print("Time parsing error: $e");
+      return "- - -";
+    }
+  }
+
+  String getVisitorTime(Map v, String status) {
+    if (status == "Captured") {
+      return v['check_in_time'] ?? "";
+    }
+
+    if (status == "Lobby") {
+      return v['form_submit_time'] ?? v['check_in_time'] ?? "";
+    }
+
+    if (status == "Check-In") {
+      return v['user_approve_time'] ??
+          v['form_submit_time'] ??
+          v['check_in_time'] ??
+          "";
+    }
+
+    if (status == "Check-Out") {
+      return v['last_check_in'] ??
+          v['user_approve_time'] ??
+          v['form_submit_time'] ??
+          v['check_in_time'] ??
+          "";
+    }
+
+    return "";
+  }
+
   Widget visitorCard(Map v, String status, Color color) {
 
-    final name = (v['first_name'] ?? "").isEmpty ? "Visitor" : v['first_name'];
+    final name = (v['first_name'] ?? "").toString().trim().isEmpty
+        ? "Visitor ${v['index'] ?? ''}"
+        : v['first_name'];
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 6),
@@ -132,9 +178,14 @@ class _HrVisitorsPageState extends State<HrVisitorsPage>
       child: Row(
         children: [
 
-          CircleAvatar(
-            radius: 24,
-            backgroundImage: NetworkImage(v['image_path']),
+          GestureDetector(
+            onTap: () {
+              showImage(v['image_path_full']);
+            },
+            child: CircleAvatar(
+              radius: 24,
+              backgroundImage: NetworkImage(v['image_path']),
+            ),
           ),
 
           const SizedBox(width: 10),
@@ -155,7 +206,7 @@ class _HrVisitorsPageState extends State<HrVisitorsPage>
                 const SizedBox(height: 3),
 
                 Text(
-                  v['check_in_time'],
+                  _formatTime(getVisitorTime(v, status)),
                   style: const TextStyle(
                     fontSize: 11,
                     color: Colors.grey,
@@ -194,6 +245,82 @@ class _HrVisitorsPageState extends State<HrVisitorsPage>
     );
   }
 
+
+  void showImage(String image) {
+    String url = image;
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.black87,
+      barrierDismissible: true, // ✅ click outside to close
+      builder: (_) {
+        final size = MediaQuery
+            .of(context)
+            .size;
+
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 40,
+          ), // ✅ space around dialog
+          child: Stack(
+            children: [
+
+              /// Image Container
+              Center(
+                child: GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  // child: Image.network(url, fit: BoxFit.contain),
+                  child: Container(
+                    width: size.width * 0.95, // 🔥 slightly reduced
+                    constraints: BoxConstraints(
+                      maxHeight: size.height * 0.85,
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.network(
+                        url,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              /// Close Button (Improved UI)
+              Positioned(
+                top: 10,
+                right: 10,
+                child: GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white, // ✅ white background
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black26,
+                          blurRadius: 6,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.close,
+                      color: Colors.black,
+                      size: 22,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
 
@@ -224,7 +351,7 @@ class _HrVisitorsPageState extends State<HrVisitorsPage>
               Tab(
                 child: Row(
                   children: [
-                    const Text("Entry"),
+                    const Text("Captured"),
                     const SizedBox(width: 6),
                     CircleAvatar(
                       radius: 10,
@@ -292,7 +419,7 @@ class _HrVisitorsPageState extends State<HrVisitorsPage>
             child: TabBarView(
               controller: _tabController,
               children: [
-                buildList(data['indexData'] ?? [], "Entry", Colors.blue),
+                buildList(data['indexData'] ?? [], "Captured", Colors.blue),
                 buildList(data['identified'] ?? [], "Lobby", Colors.orange),
                 buildList(data['trusted'] ?? [], "Check-In", Colors.green),
                 buildList(data['checkout'] ?? [], "Check-Out", Colors.red),

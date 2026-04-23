@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:hive/hive.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class HrDrawer extends StatefulWidget {
@@ -7,7 +9,7 @@ class HrDrawer extends StatefulWidget {
 }
 
 class _HrDrawerState extends State<HrDrawer> {
-  String _username = "Loading...";
+  String _username = "Hr";
   String _email = "Loading...";
   String _userProfile = "";
 
@@ -32,7 +34,9 @@ class _HrDrawerState extends State<HrDrawer> {
     return Drawer(
       child: Column(
         children: [
-           SizedBox(
+
+          /// ✅ FULL TOP HEADER (NO PADDING)
+          SizedBox(
             height: 110,
             child: DrawerHeader(
               decoration: const BoxDecoration(
@@ -55,8 +59,8 @@ class _HrDrawerState extends State<HrDrawer> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  const Text(
-                    'HR',
+                   Text(
+                    _username,
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 20,
@@ -68,31 +72,36 @@ class _HrDrawerState extends State<HrDrawer> {
             ),
           ),
 
-          _item(context, Icons.dashboard, "Home", route: "/HrDashboard"),
+          /// ✅ SCROLLABLE MENU
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                _item(context, Icons.dashboard, "Home", route: "/HrDashboard"),
+                _item(context, Icons.groups, "Employees", route: "/myTeam"),
+                _item(context, Icons.access_time, "Attendance", route: "/hr_empatt"),
+                _item(context, Icons.person, "Visitors", route: "/hr_visitors"),
+              ],
+            ),
+          ),
 
-          _item(context, Icons.groups, "Employees", route: "/myTeam"),
-
-          _item(context, Icons.access_time, "Attendance", route: "/hr_empatt"),
-
-          // _item(context, Icons.event_note, "Leaves Track", route: "/leaves"),
-
-          // _item(context, Icons.payment, "Pay Slips", route: "/payslips"),
-
-          // _item(context, Icons.apartment, "Department", route: "/department"),
-
-          _item(context, Icons.person, "Visitors", route: "/hr_visitors"),
-
-          const Spacer(),
-          const Divider(),
-
-          /// Logout Button
-          _item(
-            context,
-            Icons.logout,
-            "Logout",
-            onTap: () {
-              _showLogoutDialog(context);
-            },
+          /// ✅ ONLY BOTTOM SAFE
+          SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Divider(height: 1),
+                _item(
+                  context,
+                  Icons.logout,
+                  "Logout",
+                  onTap: () {
+                    _showLogoutDialog(context);
+                  },
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -119,7 +128,8 @@ class _HrDrawerState extends State<HrDrawer> {
 
                 /// Save companyCode
                 String? companyCode = prefs.getString('companyCode');
-
+                String? pushSubscriptionId = prefs.getString('pushSubscriptionId');
+                await updateLogoutPushId();
                 /// Clear all data
                 await prefs.clear();
 
@@ -127,6 +137,12 @@ class _HrDrawerState extends State<HrDrawer> {
                 if (companyCode != null) {
                   await prefs.setString('companyCode', companyCode);
                 }
+                if (pushSubscriptionId != null) {
+                  await prefs.setString('pushSubscriptionId', pushSubscriptionId);
+                }
+
+                final box = Hive.box('attendanceBox');
+                await box.clear();
 
                 Navigator.pop(context);
 
@@ -135,6 +151,29 @@ class _HrDrawerState extends State<HrDrawer> {
             ),
           ],
         );
+      },
+    );
+  }
+
+  Future<void> updateLogoutPushId() async {
+    final prefs = await SharedPreferences.getInstance();
+    String? playerId = prefs.getString('pushSubscriptionId');
+    String? userId = prefs.getString('user_id');
+    String apiKey = prefs.getString('apiKey') ?? "";
+    String companyDb = prefs.getString('companyDb') ?? "";
+
+    if (playerId == null) return;
+
+    await http.post(
+      Uri.parse("https://hrms.attendify.ai/index.php/MobileApi/update_push_id"),
+      headers: {
+        "apiKey": apiKey,
+        "companyDb": companyDb,
+      },
+      body: {
+        "user_id": userId,
+        "pushSubscriptionId": playerId,
+        "status": "0", // LOGOUT
       },
     );
   }

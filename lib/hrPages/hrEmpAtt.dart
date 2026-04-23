@@ -4,6 +4,8 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'hr_emp_att.dart';
+
 class HrEmployeeAtt extends StatefulWidget {
   const HrEmployeeAtt({super.key});
 
@@ -22,7 +24,7 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
   String search = "";
   String filter = "all"; // all | present | absent
 
-  bool isSearchExpanded = true;
+  bool isSearchExpanded = false;
 
   @override
   void initState() {
@@ -31,43 +33,62 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
   }
 
   Future<void> fetchAttendanceList() async {
+    setState(() => loading = true);
 
     final prefs = await SharedPreferences.getInstance();
     final apiKey = prefs.getString('apiKey');
     final cid = prefs.getString('cid');
     final companyDb = prefs.getString('companyDb');
-    String date = DateFormat("yyyy-MM-dd").format(selectedDate);
 
+    String date = DateFormat("yyyy-MM-dd").format(selectedDate);
 
     final url = Uri.parse(
         "https://hrms.attendify.ai/index.php/Dashboard/ajax_attendance_listapi?date=$date&cid=$cid");
 
-    final response = await http.get(url, headers: {
-      'apiKey': apiKey ?? '',
-      'companyDb': companyDb ?? '',
-    });
+    try {
+      final response = await http.get(url, headers: {
+        'apiKey': apiKey ?? '',
+        'companyDb': companyDb ?? '',
+      });
 
-    final data = json.decode(response.body);
+      final data = json.decode(response.body);
 
-    setState(() {
-      allList = data["data"] ?? [];
-      filteredList = List.from(allList); // 🔥 IMPORTANT
-      loading = false;
-    });
+      setState(() {
+        allList = data["data"] ?? [];
+        filteredList = List.from(allList);
+        filter = 'all';
+        loading = false;
+      });
+
+    } catch (e) {
+      setState(() => loading = false);
+    }
   }
 
   void applyFilter() {
+    List temp = List.from(allList);
 
-    List temp = allList;
-
-    /// FILTER
     if (filter == "present") {
-      temp = temp.where((e) => e['status_text'] == "IN").toList();
+      temp = temp.where((e) {
+        String status = (e['status_text'] ?? "")
+            .toString()
+            .trim()
+            .toUpperCase();
+
+        return ["PRESENT", "HALF DAY", "IN", "OUT"].contains(status);
+      }).toList();
+
     } else if (filter == "absent") {
-      temp = temp.where((e) => e['status_text'] != "IN").toList();
+      temp = temp.where((e) {
+        String status = (e['status_text'] ?? "")
+            .toString()
+            .trim()
+            .toUpperCase();
+
+        return status.isEmpty || status == "ABSENT";
+      }).toList();
     }
 
-    /// SEARCH
     if (search.isNotEmpty) {
       temp = temp.where((e) =>
           (e['firstName'] ?? "")
@@ -91,12 +112,100 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
     return size * scale;
   }
 
+  String formatTime(String? dateTime) {
+    if (dateTime == null || dateTime.isEmpty) return "--";
+
+    try {
+      DateTime dt = DateTime.parse(dateTime);
+      return TimeOfDay.fromDateTime(dt).format(context);
+    } catch (e) {
+      return "--";
+    }
+  }
+
+  Widget getDisplayTime(Map item) {
+    String status = (item['status_text'] ?? "").toString().trim();
+
+    String? first = item['first_check_in'];
+    String? last = item['last_check_in'];
+    String duration = item['duration'] ?? "";
+
+    bool hasFirst = first != null && first.isNotEmpty;
+    bool hasLast = last != null && last.isNotEmpty;
+    bool hasDuration = duration != "--" && duration != "0.00";
+
+    // ✅ FULL DAY (Present / Half Day)
+    if ((status == "Present" || status == "Half Day") && hasFirst && hasLast) {
+      return Text(
+        "${formatTime(first)} - ${formatTime(last)}",
+        style: const TextStyle(fontSize: 11),
+      );
+    }
+
+    // ✅ IN / OUT (LIVE)
+    if (status == "IN" || status == "OUT") {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+
+          if (hasFirst)
+            Text(
+              formatTime(first),
+              style: const TextStyle(fontSize: 11),
+            ),
+
+          // if (hasDuration)
+          //   Text(
+          //     "$duration h",
+          //     style: const TextStyle(
+          //       fontSize: 10,
+          //       color: Colors.grey,
+          //     ),
+          //   ),
+        ],
+      );
+    }
+
+    // ❌ Absent or no data
+    return const Text("", style: TextStyle(fontSize: 11));
+  }
+
   Widget attendanceRow(Map item, double scale) {
 
     bool isIn = item['status_text'] == "IN";
-    Color color = isIn ? Colors.green : Colors.red;
+    bool isOut = item['status_text'] == "OUT";
+    bool isPresent = item['status_text'] == "Present";
+    bool isisAbsent = item['status_text'] == "Absent";
+    bool isHalfDay = item['status_text'] == "Half Day";
 
-    return Container(
+    Color color;
+
+    if (isIn) {
+      color = Colors.blue;
+    } else if (isOut) {
+      color = Colors.red;
+    } else if (isHalfDay) {
+      color = Colors.orange;
+    } else if (isPresent) {
+      color = Colors.green;
+    } else if (isisAbsent) {
+      color = Colors.red;
+    }else {
+      color = Colors.grey;
+    }
+
+    return GestureDetector(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => HrAttendanceCal(
+                employeeCode: item['emp_code'], // 🔥 IMPORTANT
+              ),
+            ),
+          );
+        },
+        child: Container(
       margin: EdgeInsets.only(bottom: _s(8, scale)),
       padding: EdgeInsets.symmetric(
         horizontal: _s(10, scale),
@@ -157,10 +266,7 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
 
-              Text(
-                item['status_time'] ?? "--",
-                style: TextStyle(fontSize: _s(11, scale)),
-              ),
+              getDisplayTime(item),
 
               SizedBox(height: _s(2, scale)),
 
@@ -180,10 +286,14 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
                     color: color,
                   ),
                 ),
-              )
+              ),
+
+              SizedBox(height: _s(4, scale)),
+
             ],
-          )
+          ),
         ],
+      ),
       ),
     );
   }
@@ -378,9 +488,9 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
             padding: EdgeInsets.zero,
             icon: Icon(Icons.search, size: _s(18, scale)),
             onPressed: () {
-              // setState(() {
-              //   isSearchExpanded = !isSearchExpanded;
-              // });
+              setState(() {
+                isSearchExpanded = !isSearchExpanded;
+              });
             },
           ),
 
@@ -461,16 +571,6 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
     );
   }
 
-  Alignment _getAlignment() {
-    switch (filter) {
-      case "present":
-        return Alignment.center;
-      case "absent":
-        return Alignment.centerRight;
-      default:
-        return Alignment.centerLeft;
-    }
-  }
 
   Widget _segItem(String title, String value, double scale) {
     bool active = filter == value;
@@ -504,9 +604,9 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
       MediaQuery.of(context).size.width,
     );
 
-    // if (MediaQuery.of(context).size.width < 360) {
-    //   isSearchExpanded = false;
-    // }
+    if (MediaQuery.of(context).size.width < 360) {
+      isSearchExpanded = false;
+    }
 
     return Scaffold(
       appBar: AppBar(title: const Text("Attendance List")),

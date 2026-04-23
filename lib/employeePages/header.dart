@@ -26,7 +26,7 @@ class _HeaderState extends State<Header> {
   Future<void> _loadUserData() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
-      _employeeCode = prefs.getString('employe_code') ?? "- - -";
+      _employeeCode = prefs.getString('user_code') ?? "- - -";
       _userProfile = prefs.getString('user_profile') ?? "";
     });
   }

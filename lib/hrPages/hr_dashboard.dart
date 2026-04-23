@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'hr_emp_att.dart';
 import 'hr_header.dart';
 import 'hr_drawer.dart';
 import 'hr_footer.dart';
@@ -141,7 +142,12 @@ class _HrDashboardState extends State<HrDashboard> {
       drawer: HrDrawer(),
       bottomNavigationBar: const HrFooter(selectedIndex: 1),
 
-      body: SingleChildScrollView(
+        body: RefreshIndicator(
+          onRefresh: () async {
+           await fetchDashboardCounts();
+           await fetchAttendanceList();
+          },
+          child: SingleChildScrollView(
         child: Padding(
           padding: EdgeInsets.all(_s(15, scale)),
           child: Column(
@@ -172,6 +178,7 @@ class _HrDashboardState extends State<HrDashboard> {
             ],
           ),
         ),
+      ),
       ),
     );
   }
@@ -215,15 +222,6 @@ class _HrDashboardState extends State<HrDashboard> {
             ),
           ),
 
-          /// ✅ LIGHT BORDER (only inactive)
-          // border: isActive
-          //     ? Border(
-          //         top: BorderSide(color: color, width: 5),
-          //       )
-          //     : Border.all(
-          //         color: color.withOpacity(0.25),
-          //         width: 1,
-          //       ),
 
           /// ✅ SHADOW
           boxShadow: isActive
@@ -298,14 +296,30 @@ class _HrDashboardState extends State<HrDashboard> {
 
   List getFilteredList() {
     if (selectedFilter == "present") {
-      return attendanceList
-          .where((e) => e['status_text'] == "IN")
-          .toList();
+      return attendanceList.where((e) {
+        String status = (e['status_text'] ?? "")
+            .toString()
+            .trim()
+            .toUpperCase();
+
+        return status == "IN" ||
+            status == "OUT" ||
+            status == "PRESENT" ||
+            status == "HALF DAY" ||
+            status == "HALF_DAY";
+      }).toList();
+
     } else if (selectedFilter == "absent") {
-      return attendanceList
-          .where((e) => e['status_text'] == "Absent")
-          .toList();
+      return attendanceList.where((e) {
+        String status = (e['status_text'] ?? "")
+            .toString()
+            .trim()
+            .toUpperCase();
+
+        return status.isEmpty || status == "ABSENT";
+      }).toList();
     }
+
     return attendanceList;
   }
 
@@ -449,77 +463,159 @@ class _HrDashboardState extends State<HrDashboard> {
       return "- - -";
     }
   }
+
+
   Widget _attendanceRow(Map item, double scale) {
 
-    Color statusColor =
-    item['status_text'] == "IN" ? Colors.green : Colors.red;
+    String status = (item['status_text'] ?? "").toString().toUpperCase();
+
+    Color statusColor;
+
+    switch (status) {
+      case "IN":
+        statusColor = Colors.blue;
+        break;
+      case "OUT":
+        statusColor = Colors.red;
+        break;
+      case "PRESENT":
+        statusColor = Colors.green;
+        break;
+      case "HALF DAY":
+      case "HALF_DAY":
+        statusColor = Colors.orange;
+        break;
+      case "ABSENT":
+        statusColor = Colors.red;
+        break;
+      default:
+        statusColor = Colors.grey;
+    }
+
+    final status_time = (item['status_time'] != null && item['status_time'].toString().isNotEmpty)
+        ? item['status_time']
+        : "";
+
+    String statusText = item['status_text'] ?? "";
+    String statusTime = item['status_time'] ?? "";
+
+    String badgeText = statusText;
+
+    if (statusText == "IN" || statusText == "OUT") {
+      badgeText = "$statusText $statusTime";
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
 
-          CircleAvatar(
-            radius: 18,
-            backgroundImage: NetworkImage(item['thumb']),
-          ),
-
-          const SizedBox(width: 10),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-
-                Text(
-                  item['firstName'] ?? "",
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
+          /// 🔥 LEFT SIDE (CLICK → NAVIGATION)
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => HrAttendanceCal(
+                    employeeCode: item['emp_code'], // must come from API
                   ),
                 ),
+              );
+            },
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 18,
+                  backgroundImage: NetworkImage(item['thumb']),
+                ),
 
-                Text(
-                  item['designationName'] ?? "",
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey,
-                  ),
+                const SizedBox(width: 10),
+
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+
+                    Text(
+                      item['firstName'] ?? "",
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+
+                    Text(
+                      item['designationName'] ?? "",
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
 
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                _formatTime(item['first_check_in']) ?? "--",
-                style: const TextStyle(fontSize: 11),
-              ),
+          const Spacer(),
 
-              const SizedBox(height: 2),
+          /// 🔥 RIGHT SIDE (CLICK → EXPAND)
+          GestureDetector(
+            onTap: () {
+              setState(() {
+                isExpanded = !isExpanded;
+              });
+            },
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
 
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: statusColor.withOpacity(.15),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  item['status_text'],
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: statusColor,
+                if (item['first_check_in'] != null)
+                  RichText(
+                    text: TextSpan(
+                      children: [
+                        const TextSpan(
+                          text: "Login ",
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.grey,
+                          ),
+                        ),
+                        TextSpan(
+                          text: _formatTime(item['first_check_in']),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              )
-            ],
-          )
+
+                const SizedBox(height: 2),
+
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(.15),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    badgeText,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: statusColor,
+                    ),
+                  ),
+                )
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
+
+
   Widget _layoutVisitorGrid(double scale) {
     return LayoutBuilder(
       builder: (context, constraints) {

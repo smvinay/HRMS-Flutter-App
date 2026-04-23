@@ -4,7 +4,7 @@
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
-
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <!-- <key>NSLocationWhenInUseUsageDescription</key>
     <string>This app needs location access</string>
@@ -35,8 +35,9 @@
                 android:resource="@style/NormalTheme"/>
 
             <meta-data
-                android:name="com.google.android.geo.API_KEY"
-                android:value="YOUR_GOOGLE_MAPS_API_KEY_HERE"/>
+                android:name="com.onesignal.NotificationServiceExtension"
+                android:value="false" />
+
 
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
@@ -47,6 +48,14 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2"/>
+
+        <meta-data
+            android:name="com.onesignal.NotificationIcon"
+            android:resource="@drawable/ic_stat_notify" />
+
+        <meta-data
+            android:name="com.onesignal.NotificationIconLarge"
+            android:resource="@drawable/ic_launcher" />
     </application>
 
     <queries>

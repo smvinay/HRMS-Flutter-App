@@ -1,4 +1,4 @@
-# my_flutter_app
+# hrms_attendify_app
 
 A new Flutter project.
 

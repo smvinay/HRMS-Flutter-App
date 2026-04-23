@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
-import 'package:my_flutter_app/visitorPages/visitor_header.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'EmployeeAttendancePage.dart';
 import 'Service/employee_attendance_service.dart';
@@ -50,6 +49,7 @@ class _VisitorDashboardPageState extends State<VisitorDashboardPage>
   @override
   void dispose() {
     _controller.dispose();
+    _empService.stop();
     super.dispose();
   }
 

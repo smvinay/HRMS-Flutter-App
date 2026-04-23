@@ -257,6 +257,49 @@ print(result);
     return val != null && val.toString().trim().isNotEmpty;
   }
 
+  String getVisitorTime(Map v, String status) {
+    if (status == "Captured") {
+      return v['check_in_time'] ?? "";
+    }
+
+    if (status == "Lobby") {
+      return v['form_submit_time'] ?? v['check_in_time'] ?? "";
+    }
+
+    if (status == "Check-In") {
+      return v['user_approve_time'] ??
+          v['form_submit_time'] ??
+          v['check_in_time'] ??
+          "";
+    }
+
+    if (status == "Check-Out") {
+      return v['last_check_in'] ??
+          v['user_approve_time'] ??
+          v['form_submit_time'] ??
+          v['check_in_time'] ??
+          "";
+    }
+
+    return "";
+  }
+
+  String getStatusText(int status) {
+    return "Lobby";
+    // switch (status) {
+    //   case 0:
+    //     return "Captured";
+    //   case 1:
+    //     return "Lobby";
+    //   case 2:
+    //     return "Check-In";
+    //   case 3:
+    //     return "Check-Out";
+    //   default:
+    //     return "Captured";
+    // }
+  }
+
   Widget visitorCard(item) {
 
     int status = int.tryParse(item['status'].toString()) ?? 0;
@@ -327,12 +370,14 @@ print(result);
                             ),
 
                             Text(
-                              _formatDateTime(item['check_in_time']),
+                              _formatDateTime(
+                                getVisitorTime(item, getStatusText(status)),
+                              ),
                               style: const TextStyle(
                                 fontSize: 11,
                                 color: Colors.grey,
                               ),
-                            )
+                            ),
                           ],
                         ),
 

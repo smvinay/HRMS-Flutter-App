@@ -27,15 +27,12 @@ class HrFooter extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-
           Icon(
             icon,
             color: isActive ? const Color(0xFF0557A2) : Colors.grey[600],
             size: 22,
           ),
-
           const SizedBox(height: 4),
-
           Text(
             label,
             style: TextStyle(
@@ -44,7 +41,6 @@ class HrFooter extends StatelessWidget {
               fontSize: 12,
             ),
           ),
-
           if (isActive)
             Container(
               margin: const EdgeInsets.only(top: 6),
@@ -59,58 +55,63 @@ class HrFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: Color(0xFFE0E0E0))),
-        color: Colors.white,
-      ),
-      child: Row(
-        children: [
-
-          /// TEAM
-          Expanded(
-            child: _footerItem(
-              context,
-              Icons.groups,
-              "Employees",
-              0,
-            ),
+    return Material(
+      color: Colors.white,
+      child: SafeArea(
+        top: false,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: const BoxDecoration(
+            border: Border(top: BorderSide(color: Color(0xFFE0E0E0))),
           ),
+          child: Row(
+            children: [
 
-          /// CENTER HOME BUTTON
-          Expanded(
-            child: InkWell(
-              onTap: () => _onTabSelected(context, 1),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF0557A2),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.home,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
+              /// TEAM
+              Expanded(
+                child: _footerItem(
+                  context,
+                  Icons.groups,
+                  "Employees",
+                  0,
+                ),
               ),
-            ),
-          ),
 
-          /// VISITORS
-          Expanded(
-            child: _footerItem(
-              context,
-              Icons.person,
-              "Visitors",
-              2,
-            ),
+              /// HOME BUTTON
+              Expanded(
+                child: InkWell(
+                  onTap: () => _onTabSelected(context, 1),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF0557A2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.home,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              /// VISITORS
+              Expanded(
+                child: _footerItem(
+                  context,
+                  Icons.person,
+                  "Visitors",
+                  2,
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

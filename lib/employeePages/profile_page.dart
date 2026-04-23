@@ -1,6 +1,9 @@
 import 'dart:convert';
+import 'dart:io';
+import 'package:another_flushbar/flushbar.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -19,6 +22,8 @@ class _ProfilePageState extends State<ProfilePage>
 
   late AnimationController _controller;
   late Animation<double> _scale;
+  File? profileImage;
+  final ImagePicker picker = ImagePicker();
 
   @override
   void initState() {
@@ -51,12 +56,14 @@ class _ProfilePageState extends State<ProfilePage>
         },
       );
 
-      print(response.body); // DEBUG
+      // print(response.body); // DEBUG
 
       final jsonData = json.decode(response.body);
 
       if (jsonData["status"] == true) {
         employee = jsonData["data"];
+
+        await prefs.setString('user_profile', employee['user_profile']);
         referencePhotos = jsonData["reference_photos"];
       }
 
@@ -135,7 +142,7 @@ class _ProfilePageState extends State<ProfilePage>
       );
     }
 
-    final profileImage =
+    final profile =
         "https://hrms.attendify.ai/photos/${employee['user_profile']}";
 
     return Scaffold(
@@ -145,15 +152,19 @@ class _ProfilePageState extends State<ProfilePage>
         backgroundColor: const Color(0xFF0557a2),
         foregroundColor: Colors.white,
       ),
-      body: AnimatedOpacity(
+        body: RefreshIndicator(
+          onRefresh: () async {
+            await fetchEmployeeDetails();
+          },
+          child: AnimatedOpacity(
         opacity: 1,
         duration: const Duration(milliseconds: 500),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           child: Column(
             children: [
 
-              /// PROFILE CARD
               TweenAnimationBuilder(
                 duration: const Duration(milliseconds: 600),
                 tween: Tween<double>(begin: 40, end: 0),
@@ -178,11 +189,37 @@ class _ProfilePageState extends State<ProfilePage>
                   ),
                   child: Row(
                     children: [
+                      Stack(
+                        children: [
 
-                      /// PROFILE IMAGE
-                      CircleAvatar(
-                        radius: 45,
-                        backgroundImage: NetworkImage(profileImage),
+                          GestureDetector(
+                            onTap: _showProfilePickerOptions,
+                            child: Stack(
+                              children: [
+                                CircleAvatar(
+                                  radius: 45,
+                                  backgroundImage: profileImage != null
+                                      ? FileImage(profileImage!)
+                                      : NetworkImage(profile) as ImageProvider,
+                                ),
+
+                                Positioned(
+                                  bottom: 0,
+                                  right: 0,
+                                  child: GestureDetector(
+                                    onTap: _showProfilePickerOptions,
+                                    child: const CircleAvatar(
+                                      radius: 14,
+                                      backgroundColor: Colors.white,
+                                      child: Icon(Icons.camera_alt, size: 18),
+                                    ),
+                                  ),
+                                )
+                              ],
+                            ),
+                          )
+
+                        ],
                       ),
 
                       const SizedBox(width: 12),
@@ -200,16 +237,7 @@ class _ProfilePageState extends State<ProfilePage>
                                   fontWeight: FontWeight.bold),
                             ),
 
-                            // const SizedBox(height: 4),
-                            //
-                            // Text(
-                            //   employee['designationName'] ?? '',
-                            //   style: const TextStyle(
-                            //       fontSize: 13,
-                            //       color: Colors.grey),
-                            // ),
-
-                            const SizedBox(height: 6),
+                           const SizedBox(height: 6),
 
                             Row(
                               children: [
@@ -344,7 +372,7 @@ class _ProfilePageState extends State<ProfilePage>
                 child: Column(
                   children: [
 
-                    _infoRow("Employee Code", employee['employe_code']),
+                    _infoRow("Employee Code", employee['user_code']),
                     _infoRow("Shift", employee['shiftName']),
                     _infoRow("Date of Joining", employee['doj']),
                     _infoRow("Address", employee['address']),
@@ -355,6 +383,7 @@ class _ProfilePageState extends State<ProfilePage>
             ],
           ),
         ),
+      ),
       ),
     );
   }
@@ -381,6 +410,114 @@ class _ProfilePageState extends State<ProfilePage>
         ],
       ),
     );
+  }
+
+  void _showProfilePickerOptions() {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text("Open Camera"),
+                onTap: () {
+                  Navigator.pop(context);
+                  pickProfileImage(ImageSource.camera);
+                },
+              ),
+
+              ListTile(
+                leading: const Icon(Icons.photo),
+                title: const Text("Upload from Gallery"),
+                onTap: () {
+                  Navigator.pop(context);
+                  pickProfileImage(ImageSource.gallery);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future pickProfileImage(ImageSource source) async {
+
+    final XFile? image = await picker.pickImage(source: source);
+
+    if (image == null) return;
+
+    File file = File(image.path);
+
+    setState(() {
+      profileImage = file;
+    });
+
+    uploadProfileImage(file);
+  }
+
+  Future<void> uploadProfileImage(File file) async {
+
+    final prefs = await SharedPreferences.getInstance();
+
+    String? apiKey = prefs.getString('apiKey');
+    String? companyDb = prefs.getString('companyDb');
+    String? cid = prefs.getString('cid');
+
+    var request = http.MultipartRequest(
+      'POST',
+      Uri.parse(
+          'https://hrms.attendify.ai/index.php/mobileApi/update_employee_profile'),
+    );
+
+    request.headers.addAll({
+      'apiKey': apiKey ?? '',
+      'companyDb': companyDb ?? '',
+    });
+
+    request.fields['cid'] = cid ?? '';
+    request.fields['employee_code'] = employee?["employe_code"] ?? '';
+    request.fields['userId'] = employee?["user_id"] ?? '';
+    request.fields['first_name'] = employee?["first_name"] ?? '';
+    request.fields['last_name'] = employee?["last_name"] ?? '';
+
+    request.files.add(
+      await http.MultipartFile.fromPath(
+        'user_profile',
+        file.path,
+      ),
+    );
+
+    var response = await request.send();
+
+    var resBody = await response.stream.bytesToString();
+    var jsonData = json.decode(resBody);
+
+    if (jsonData["status"] == true) {
+
+      _showflashbar("Profile updated successfully", Colors.green);
+
+      fetchEmployeeDetails();
+
+    } else {
+
+      _showflashbar(jsonData["message"], Colors.red);
+
+    }
+  }
+
+  void _showflashbar(String message, Color color) {
+    Flushbar(
+      message: message,
+      duration: const Duration(seconds: 2),
+      backgroundColor: color,
+      borderRadius: BorderRadius.circular(8),
+      margin: const EdgeInsets.all(12),
+      flushbarPosition: FlushbarPosition.TOP,
+    ).show(context);
   }
 
 }
