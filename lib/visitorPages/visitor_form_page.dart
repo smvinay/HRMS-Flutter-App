@@ -1225,8 +1225,9 @@ class _VisitorFormPageState extends State<VisitorFormPage>
     final id = prefs.getString('user_id');
 
     /// determine user id
+    bool isdefaultemployee = selectedEmployee?.id == id;
     String? userId = selectedEmployee?.id ?? id;
-    String? status = selectedEmployee?.id != null ? '0' :  '1';
+    String? status = isdefaultemployee ? '1' :  '0';
 
     if (apiKey == null || companyDb == null) {
       _showflashbar("Authentication error", Colors.red.shade300);
@@ -1255,6 +1256,7 @@ class _VisitorFormPageState extends State<VisitorFormPage>
           'guestfrom': from,
           'guestID': visitor.id,
           'user_id': userId,
+          'logeduser_id': id,
           'status' : status
         },
       );

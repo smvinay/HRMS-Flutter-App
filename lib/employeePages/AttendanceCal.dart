@@ -33,7 +33,7 @@ class _AttendanceCalState extends State<AttendanceCal> {
   String totalDuration = "";
   String totalBreak = "";
   String loadedMonthKey = "";
-
+  String? errorText;
   String _getCacheKey(int year, int month) {
     return "attendance_${year}_$month";
   }
@@ -400,6 +400,7 @@ class _AttendanceCalState extends State<AttendanceCal> {
 
                   /// 👉 OPEN MODAL ONLY (don’t stop normal flow)
                   if (isEligibleForCheckout) {
+                    errorText = null;
                     _openCheckoutModal(key);
                   }
 
@@ -485,6 +486,8 @@ class _AttendanceCalState extends State<AttendanceCal> {
 
     String checkinRaw = attendanceMap[date]['checkin'] ?? "";
     String checkinFormatted = _formatTime(checkinRaw);
+    String formateddate = _formatTime(date);
+    bool isConfirmed = false;
 
     showDialog(
       context: context,
@@ -501,7 +504,6 @@ class _AttendanceCalState extends State<AttendanceCal> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-
                     /// HEADER
                     Row(
                       children: const [
@@ -528,7 +530,7 @@ class _AttendanceCalState extends State<AttendanceCal> {
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
-                        "Date: $date",
+                        "Date: ${DateFormat('dd-MM-yyyy').format(DateTime.parse(date))}",
                         style: const TextStyle(fontWeight: FontWeight.w500),
                       ),
                     ),
@@ -565,6 +567,7 @@ class _AttendanceCalState extends State<AttendanceCal> {
                         if (picked != null) {
                           setState(() {
                             selectedTime = picked;
+                            errorText = null;
                           });
                         }
                       },
@@ -591,25 +594,95 @@ class _AttendanceCalState extends State<AttendanceCal> {
                       ),
                     ),
 
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 10),
 
-                    /// BUTTONS
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text("Cancel"),
-                          ),
+                        Checkbox(
+                          value: isConfirmed,
+                          onChanged: (val) {
+                            setState(() {
+                              isConfirmed = val ?? false;
+                            });
+                          },
                         ),
                         Expanded(
-                          child: ElevatedButton(
-                            onPressed: () {
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                isConfirmed = !isConfirmed;
+                              });
+                            },
+                            child: const Padding(
+                              padding: EdgeInsets.only(top: 12),
+                              child: Text(
+                                "I hereby consent to manual self-attendance marking.",
+                                style: TextStyle(fontSize: 13),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    if (errorText != null) ...[
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          const Icon(Icons.error_outline,
+                              color: Colors.red, size: 16),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              errorText!,
+                              style: const TextStyle(
+                                color: Colors.red,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+
+                    Row(
+                      children: [
+                        /// CANCEL
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => Navigator.pop(context),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              alignment: Alignment.center,
+                              child: const Text(
+                                "Cancel",
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  color: Colors.grey,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        /// DIVIDER
+                        Container(
+                          width: 1,
+                          height: 40,
+                          color: Colors.grey.shade300,
+                        ),
+
+                        /// SUBMIT
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () {
                               if (selectedTime == null) return;
 
-                              /// 🔥 VALIDATION
-                              DateTime checkinTime =
-                              DateTime.parse(checkinRaw);
+                              DateTime checkinTime = DateTime.parse(checkinRaw);
 
                               DateTime selectedDateTime = DateTime(
                                 checkinTime.year,
@@ -620,12 +693,17 @@ class _AttendanceCalState extends State<AttendanceCal> {
                               );
 
                               if (selectedDateTime.isBefore(checkinTime)) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                        "Checkout cannot be before check-in"),
-                                  ),
-                                );
+                                setState(() {
+                                  errorText =
+                                  "Checkout cannot be before check-in";
+                                });
+                                return;
+                              }
+                              if (!isConfirmed) {
+                                setState(() {
+                                  errorText =
+                                  "Please confirm before submitting";
+                                });
                                 return;
                               }
 
@@ -633,18 +711,24 @@ class _AttendanceCalState extends State<AttendanceCal> {
                                   "${selectedTime!.hour.toString().padLeft(2, '0')}:${selectedTime!.minute.toString().padLeft(2, '0')}";
 
                               Navigator.pop(context);
-
                               submitCheckout(date, time);
                             },
-                            style: ElevatedButton.styleFrom(
-                              padding:
-                              const EdgeInsets.symmetric(vertical: 12),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              alignment: Alignment.center,
+                              child: const Text(
+                                "Submit",
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  color: Colors.blue,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ),
-                            child: const Text("Submit"),
                           ),
                         ),
                       ],
-                    ),
+                    )
                   ],
                 ),
               );
@@ -662,7 +746,7 @@ class _AttendanceCalState extends State<AttendanceCal> {
     String companyDb = prefs.getString('companyDb') ?? "";
     String cid = prefs.getString('cid') ?? "";
     String userId = prefs.getString('employe_code') ?? "";
-    String firstName = prefs.getString('first_name') ?? "";
+    String firstName = prefs.getString('username') ?? "";
     String lastName = prefs.getString('last_name') ?? "";
 
     String url = "https://hrms.attendify.ai/index.php/MobileApi/manualEntry";
@@ -711,13 +795,15 @@ class _AttendanceCalState extends State<AttendanceCal> {
         focusedDay = selectedDate;
         selectedDay = selectedDate;
       });
-
+      String key = DateFormat('yyyy-MM-dd').format(selectedDate);
+      // await loadBreakHistory(key);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(res['message'] ?? "Failed")),
       );
     }
   }
+
 
 
   void _updateAttendanceStatus() {

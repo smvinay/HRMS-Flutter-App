@@ -168,47 +168,44 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
   }
 
   Future<void> pickDate(bool isFrom) async {
-    DateTime initial = isFrom ? fromDate! : toDate!;
+    DateTime now = DateTime.now();
 
     DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: initial,
-
-      // 🔥 KEY LOGIC
-      firstDate: isFrom
-          ? selectedDateSafe
-          : fromDate!, // 🚀 prevents selecting before fromDate
-
+      initialDate: isFrom ? fromDate! : toDate!,
+      firstDate: isFrom ? now : fromDate!, // key fix
       lastDate: DateTime(2030),
     );
 
-    if (!isFrom && leaveFor == "0.5") return;
+    if (picked == null) return;
 
-    if (picked != null) {
-      setState(() {
-        if (isFrom) {
-          fromDate = picked;
+    setState(() {
+      if (isFrom) {
+        fromDate = picked;
 
-          /// 🔥 Auto-fix toDate if invalid
-          if (toDate!.isBefore(picked)) {
-            toDate = picked;
-          }
-        } else {
-          /// 🔥 Extra safety (manual check)
-          if (picked.isBefore(fromDate!)) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("To date cannot be before From date")),
-            );
-            return;
-          }
-
+        /// ✅ Ensure To Date is not before From Date
+        if (toDate == null || toDate!.isBefore(picked)) {
           toDate = picked;
         }
 
-        calculateDays();
-        updateControllers();
-      });
-    }
+        /// ✅ Half day → force same date
+        if (leaveFor == "0.5") {
+          toDate = picked;
+        }
+      } else {
+        /// ❌ Block To Date change for Half Day
+        if (leaveFor == "0.5") return;
+
+        /// ✅ Ensure To >= From
+        if (picked.isBefore(fromDate!)) {
+          toDate = fromDate;
+        } else {
+          toDate = picked;
+        }
+      }
+
+      calculateDays();
+    });
   }
 
   Color getStatusColor(int status) {
@@ -260,6 +257,26 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
       );
       return;
     }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Confirm"),
+        content: const Text("Do you want to apply this leave?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Yes"),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
 
     setState(() => isSubmitting = true);
 
@@ -848,7 +865,6 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
               /// Submit Button
               Center(
                 child: SizedBox(
-                  // width: _s(140, scale),
                   child: ElevatedButton(
                     onPressed: isSubmitting ? null : submit,
                     style: ElevatedButton.styleFrom(
@@ -1040,7 +1056,7 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 10,
-                                      vertical: 1, // ↓ reduced from 3 → 1
+                                      vertical: 0, // ↓ reduced from 3 → 1
                                     ),
                                     constraints: const BoxConstraints(
                                       minHeight: 20, // control height
@@ -1050,15 +1066,16 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
                                       borderRadius: BorderRadius.circular(20),
                                       border: Border.all(color: Colors.deepOrangeAccent),
                                     ),
-                                    child: const Text(
-                                      "Withdraw",
-                                      style: TextStyle(
-                                        fontSize: 15, // you can also reduce to 9 if needed
-                                        color: Colors.deepOrangeAccent,
-                                        fontWeight: FontWeight.w600,
-                                        // height: 1.0, // tighter text height
-                                      ),
-                                    ),
+                                    child: const Icon(Icons.outbound, size: 15 , color: Colors.orange,),
+                                    // child: const Text(
+                                    //   "Withdraw",
+                                    //   style: TextStyle(
+                                    //     fontSize: 14, // you can also reduce to 9 if needed
+                                    //     color: Colors.deepOrangeAccent,
+                                    //     fontWeight: FontWeight.w600,
+                                    //     // height: 1.0, // tighter text height
+                                    //   ),
+                                    // ),
                                   ),
                                 ),
 
@@ -1073,7 +1090,22 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
                                         0;
                                     openEditLeaveModal(leaveId);
                                   },
-                                  child: const Icon(Icons.edit, size: 15),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 0, // ↓ reduced from 3 → 1
+                                    ),
+                                    constraints: const BoxConstraints(
+                                      minHeight: 20, // control height
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.lightBlueAccent.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(color: Colors.lightBlueAccent),
+                                    ),
+                                    child: const Icon(Icons.edit, size: 15 , color: Colors.blue,),
+                                  ),
+                                  // const Icon(Icons.edit, size: 15),
                                 ),
                             ],
                           ),
@@ -1302,37 +1334,69 @@ class _EditLeaveModalState extends State<EditLeaveModal> {
   }
 
   Future<void> pickDate(bool isFrom) async {
-    DateTime initial = isFrom ? fromDate! : toDate!;
+    DateTime now = DateTime.now();
 
     DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: initial,
-      firstDate: isFrom ? DateTime.now() : fromDate!,
+      initialDate: isFrom ? fromDate! : toDate!,
+      firstDate: isFrom ? now : fromDate!, // key fix
       lastDate: DateTime(2030),
     );
 
-    if (!isFrom && leaveFor == "0.5") return;
+    if (picked == null) return;
 
-    if (picked != null) {
-      setState(() {
-        if (isFrom) {
-          fromDate = picked;
+    setState(() {
+      if (isFrom) {
+        fromDate = picked;
 
-          if (toDate!.isBefore(picked)) {
-            toDate = picked;
-          }
-        } else {
+        /// ✅ Ensure To Date is not before From Date
+        if (toDate == null || toDate!.isBefore(picked)) {
           toDate = picked;
         }
 
-        calculateDays(); // already updates controllers
-      });
-    }
+        /// ✅ Half day → force same date
+        if (leaveFor == "0.5") {
+          toDate = picked;
+        }
+      } else {
+        ///  Block To Date change for Half Day
+        if (leaveFor == "0.5") return;
+
+        ///  Ensure To >= From
+        if (picked.isBefore(fromDate!)) {
+          toDate = fromDate;
+        } else {
+          toDate = picked;
+        }
+      }
+
+      calculateDays();
+    });
   }
 
 
   Future<void> updateLeave() async {
     if (isSubmitting) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Confirm"),
+        content: const Text("Do you want to update this leave?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Yes"),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
 
     setState(() => isSubmitting = true);
 

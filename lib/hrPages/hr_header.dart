@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../employeePages/EmpNotificationPage.dart';
+
 class HrHeader extends StatefulWidget implements PreferredSizeWidget {
   const HrHeader({Key? key}) : super(key: key);
 
@@ -46,6 +48,20 @@ class _HrHeaderState extends State<HrHeader> {
           },
         ),
       ),
+
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.notifications, color: Colors.white),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => EmpNotificationPage(),
+              ),
+            );
+          },
+        ),
+      ],
     );
   }
 }

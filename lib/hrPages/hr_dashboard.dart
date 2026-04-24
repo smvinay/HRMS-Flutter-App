@@ -31,6 +31,10 @@ class _HrDashboardState extends State<HrDashboard> {
   bool isExpanded = false;
 
   String selectedFilter = "all"; // all | present | absent
+
+  List<String> employeeCodes = [];
+  int currentIndex = 0;
+
   @override
   void initState() {
     super.initState();
@@ -97,7 +101,6 @@ class _HrDashboardState extends State<HrDashboard> {
         "https://hrms.attendify.ai/index.php/Dashboard/ajax_attendance_listapi?date=$date&cid=$cid");
 
     try {
-
       final response = await http.get(
         url,
         headers: {
@@ -105,18 +108,14 @@ class _HrDashboardState extends State<HrDashboard> {
           'companyDb': companyDb,
         },
       );
-
       if (response.statusCode == 200) {
-
         final data = json.decode(response.body);
-
         setState(() {
           attendanceList = data["data"] ?? [];
+          employeeCodes = attendanceList.map<String>((e) => e['emp_code'].toString()).toList();
           attendanceLoading = false;
         });
-
       }
-
     } catch (e) {
       print("Attendance API error: $e");
     }
@@ -142,13 +141,14 @@ class _HrDashboardState extends State<HrDashboard> {
       drawer: HrDrawer(),
       bottomNavigationBar: const HrFooter(selectedIndex: 1),
 
-        body: RefreshIndicator(
-          onRefresh: () async {
-           await fetchDashboardCounts();
-           await fetchAttendanceList();
-          },
-          child: SingleChildScrollView(
-        child: Padding(
+      body: RefreshIndicator(
+        onRefresh: () async {
+          await fetchDashboardCounts();
+          await fetchAttendanceList();
+        },
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(), //  IMPORTANT
+          child: Padding(
           padding: EdgeInsets.all(_s(15, scale)),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -513,11 +513,14 @@ class _HrDashboardState extends State<HrDashboard> {
           /// 🔥 LEFT SIDE (CLICK → NAVIGATION)
           GestureDetector(
             onTap: () {
+              int index = employeeCodes.indexOf(item['emp_code'].toString());
+
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => HrAttendanceCal(
-                    employeeCode: item['emp_code'], // must come from API
+                  builder: (_) => EmployeeSwipeScreen(
+                    employeeList: employeeCodes,
+                    initialIndex: index, //  correct
                   ),
                 ),
               );

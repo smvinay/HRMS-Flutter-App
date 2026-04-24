@@ -366,6 +366,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     "applied_date": item['applied_date'],
                     "status": status,
                     "reason": item['reason'] ?? "",
+                    "reporting_to_name": item['reporting_to_name'] ?? "",
                     "type": item['type'] ?? "",
                     "days": item['days'],
                     "from_date": item['from_date'],
@@ -953,7 +954,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                             child: const Padding(
                               padding: EdgeInsets.only(top: 12),
                               child: Text(
-                                "I confirm that the checkout time entered is correct.",
+                                "I hereby consent to manual self-attendance marking.",
                                 style: TextStyle(fontSize: 13),
                               ),
                             ),
@@ -1421,9 +1422,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         date.weekday == DateTime.saturday || date.weekday == DateTime.sunday;
     bool isEligibleForCheckout = isPastDay && hasCheckIn && latestStatus;
 
-    bool hasLeave = hasData && attendanceMap[key]['leaves'] != null;
+    List leaves = attendanceMap[key]?['leaves'] ?? [];
 
-    bool isApproved = false;
+    bool isHalfDay = leaves.any((l) => l['days'].toString() == '0.5');
+    bool isApproved = leaves.any((l) => l['status'] == 1);
+    bool hasLeave = leaves.isNotEmpty;
 
     if (hasLeave) {
       List leaves = attendanceMap[key]['leaves'];
@@ -1547,15 +1550,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             top: 2,
             right: 2,
             child: Container(
-              padding: EdgeInsets.all(2),
+              padding: EdgeInsets.all(3),
               decoration: BoxDecoration(
                 color: isApproved ? Colors.green : Colors.grey,
                 shape: BoxShape.circle,
               ),
-              child: Icon(
-                Icons.event,
-                size: _s(10, scale),
-                color: Colors.white,
+              child: Text(
+                isHalfDay ? "HL" : "L",
+                style: TextStyle(
+                  fontSize: _s(8, scale),
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ),
@@ -1645,165 +1651,221 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               bool isApproved = status == 1;
 
               DateTime today = DateTime.now();
-              DateTime selectedDate = DateTime(
-                selectedDay.year,
-                selectedDay.month,
-                selectedDay.day,
-              );
+              DateTime fromDate = DateTime.parse(leave['from_date']);
+              DateTime applieDate = DateTime.parse(leave['applied_date']);
 
-              bool isFuture = selectedDate.isAfter(
-                DateTime(today.year, today.month, today.day),
-              );
+              DateTime todayDate = DateTime(today.year, today.month, today.day);
+              DateTime fromDateOnly =
+              DateTime(fromDate.year, fromDate.month, fromDate.day);
+
+              bool isFutureOrToday = !fromDateOnly.isBefore(todayDate);
+
+              bool showWithdraw =
+                  (status == 0) || (status == 1 && isFutureOrToday);
 
               return Container(
+                margin: EdgeInsets.only(bottom: _s(8, scale)),
                 padding: EdgeInsets.all(_s(10, scale)),
                 decoration: BoxDecoration(
-                  color: Colors.green.shade50,
+                  color: getStatusColor(status).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(_s(10, scale)),
-                  border: Border.all(color: Colors.green.shade300),
+                  border: Border.all(color: getStatusColor(status).withOpacity(0.5)),
                 ),
-                child: Row(
+                // decoration: BoxDecoration(
+                //   color: Colors.white,
+                //   borderRadius: BorderRadius.circular(_s(10, scale)),
+                //   boxShadow: [
+                //     BoxShadow(
+                //       color: Colors.black.withOpacity(0.04),
+                //       blurRadius: 4,
+                //       offset: const Offset(0, 2),
+                //     )
+                //   ],
+                // ),
+
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
 
-                    /// 🔹 LEFT SIDE (flex 5)
-                    Expanded(
-                      flex: 5,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
+                    ///  TOP ROW (MATCH LIST TAB)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
 
-                          /// Leave Type
-                          Text(
-                            leave['type'] ?? "",
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: _s(13, scale),
-                            ),
-                          ),
-
-                          SizedBox(height: _s(4, scale)),
-
-                          /// Applied Date
-                          Row(
+                        /// LEFT (flex 5)
+                        Expanded(
+                          flex: 5,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Icon(Icons.access_time,
-                                  size: 12, color: Colors.grey),
-                              const SizedBox(width: 4),
+
+                              /// Applied Date
+                              Row(
+                                children: [
+                                  const Icon(Icons.access_time,
+                                      size: 12, color: Colors.grey),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    formatDate(applieDate),
+                                    style: TextStyle(
+                                      fontSize: _s(10, scale),
+                                      color: Colors.grey.shade500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+
+                              SizedBox(height: _s(2, scale)),
+
+                              /// Leave Type
                               Text(
-                                formatDate(DateTime.parse(leave['applied_date'])),
+                                leave['type'] ?? "",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: _s(13, scale),
+                                ),
+                              ),
+
+                              SizedBox(height: _s(4, scale)),
+
+                              Row(
+                                children: [
+                                  const Icon(Icons.person_outline,
+                                      size: 14, color: Colors.grey),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      leave['reporting_to_name'] ?? "",
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: _s(4, scale)),
+
+                              /// Reason
+                              if ((leave['reason'] ?? "").toString().isNotEmpty)
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Icon(
+                                      Icons.notes,
+                                      size: 14,
+                                      color: Colors.grey,
+                                    ),
+                                    SizedBox(width: _s(4, scale)),
+                                    Expanded(
+                                      child: Text(
+                                        leave['reason'],
+                                        maxLines: 3,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: _s(11, scale),
+                                          color: Colors.grey.shade700,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                            ],
+                          ),
+                        ),
+
+                        SizedBox(width: _s(8, scale)),
+
+                        /// RIGHT (flex 4)
+                        Expanded(
+                          flex: 4,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+
+                              /// Date Range
+                              Text(
+                                "${formatDate(DateTime.parse(leave['from_date']))} - ${formatDate(DateTime.parse(leave['to_date']))}",
+                                textAlign: TextAlign.right,
                                 style: TextStyle(
                                   fontSize: _s(11, scale),
                                   color: Colors.grey.shade600,
                                 ),
                               ),
-                            ],
-                          ),
 
-                          /// Reason
-                          if ((leave['reason'] ?? "").toString().isNotEmpty) ...[
-                            SizedBox(height: _s(6, scale)),
-                            Text.rich(
-                              TextSpan(
+                              SizedBox(height: _s(4, scale)),
+
+                              /// Days
+                              Text(
+                                "${leave['days']} days",
+                                style: TextStyle(
+                                  fontSize: _s(11, scale),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+
+                              SizedBox(height: _s(6, scale)),
+
+                              /// Status + Withdraw
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
-                                  const TextSpan(
-                                    text: "Remark ",
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.grey,
-                                      fontWeight: FontWeight.w500,
+
+                                  /// STATUS
+                                  Container(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: _s(8, scale),
+                                      vertical: _s(2, scale),
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: getStatusColor(status).withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Text(
+                                      getStatusText(status),
+                                      style: TextStyle(
+                                        fontSize: _s(10, scale),
+                                        fontWeight: FontWeight.w600,
+                                        color: getStatusColor(status),
+                                      ),
                                     ),
                                   ),
-                                  TextSpan(
-                                    text: leave['reason'],
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.black87,
+
+                                  SizedBox(width: _s(6, scale)),
+
+                                  /// ONLY WITHDRAW (NO EDIT)
+                                  if (showWithdraw)
+                                    GestureDetector(
+                                      onTap: () {
+                                        withdrawLeave(
+                                            leave['leave_id'].toString());
+                                      },
+                                      child: Container(
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: _s(8, scale),
+                                          vertical: _s(2, scale),
+                                        ),
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(20),
+                                          border:
+                                          Border.all(color: Colors.orange),
+                                          color: Colors.orange.withOpacity(0.1),
+                                        ),
+                                        child: const Icon(
+                                          Icons.outbound,
+                                          size: 14,
+                                          color: Colors.orange,
+                                        ),
+                                      ),
                                     ),
-                                  ),
                                 ],
                               ),
-                              maxLines: 3,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-
-                    SizedBox(width: _s(10, scale)),
-
-                    /// 🔹 RIGHT SIDE (flex 4)
-                    Expanded(
-                      flex: 4,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-
-                          /// STATUS (TOP)
-                          Text(
-                            isApproved ? "Approved" : "Pending",
-                            style: TextStyle(
-                              fontSize: _s(12, scale),
-                              fontWeight: FontWeight.w600,
-                              color: isApproved ? Colors.green : Colors.orange,
-                            ),
+                            ],
                           ),
-
-                          SizedBox(height: _s(4, scale)),
-
-                          /// DATE RANGE (MIDDLE)
-                          Text(
-                            "${formatDate(DateTime.parse(leave['from_date']))} - ${formatDate(DateTime.parse(leave['to_date']))}",
-                            textAlign: TextAlign.right,
-                            style: TextStyle(
-                              fontSize: _s(11, scale),
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-
-                          SizedBox(height: _s(6, scale)),
-
-                          /// DAYS (BOTTOM)
-                          Text(
-                            "${leave['days']} days",
-                            style: TextStyle(
-                              fontSize: _s(12, scale),
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black87,
-                            ),
-                          ),
-
-                          SizedBox(height: _s(6, scale)),
-
-                          /// WITHDRAW BUTTON
-                          if (status == 0 || isFuture)
-                            GestureDetector(
-                              onTap: () {
-                                withdrawLeave(leave['leave_id'].toString());
-                              },
-                              child: Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: _s(10, scale),
-                                  vertical: _s(4, scale),
-                                ),
-                                decoration: BoxDecoration(
-                                  border: Border.all(color: Colors.orange),
-                                  borderRadius:
-                                  BorderRadius.circular(_s(6, scale)),
-                                ),
-                                child: Text(
-                                  "Withdraw",
-                                  style: TextStyle(
-                                    color: Colors.orange,
-                                    fontSize: _s(11, scale),
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -1811,7 +1873,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             }),
             SizedBox(height: _s(10, scale)),
           ],
-
           /// ✅ ATTENDANCE ALWAYS SHOW (if data exists)
           if (data['checkin'] != null)
             Row(
@@ -1844,6 +1905,32 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   String formatDate(DateTime date) {
     return DateFormat('dd-MM-yyyy').format(date);
+  }
+
+  Color getStatusColor(int status) {
+    switch (status) {
+      case 1:
+        return Colors.green;
+      case 2:
+        return Colors.red;
+      case 3:
+        return Colors.grey;
+      default:
+        return Colors.orange;
+    }
+  }
+
+  String getStatusText(int status) {
+    switch (status) {
+      case 1:
+        return "Approved";
+      case 2:
+        return "Rejected";
+      case 3:
+        return "Withdrawn";
+      default:
+        return "Pending";
+    }
   }
 
   Future<void> withdrawLeave(String leaveId) async {

@@ -19,7 +19,8 @@ class HrAttendanceCal extends StatefulWidget {
   _HrAttendanceCalState createState() => _HrAttendanceCalState();
 }
 
-class _HrAttendanceCalState extends State<HrAttendanceCal> with TickerProviderStateMixin {
+class _HrAttendanceCalState extends State<HrAttendanceCal>
+    with TickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   String attendanceStatus = "checkin";
   String currentStatus = "checkin";
   String _userId = "";
@@ -58,6 +59,9 @@ class _HrAttendanceCalState extends State<HrAttendanceCal> with TickerProviderSt
   late AnimationController blinkController;
 
   @override
+  bool get wantKeepAlive => true;
+
+  @override
   void initState() {
     super.initState();
     _currentDay = DateFormat('yyyy-MM-dd').format(DateTime.now());
@@ -86,20 +90,55 @@ class _HrAttendanceCalState extends State<HrAttendanceCal> with TickerProviderSt
     super.dispose();
   }
 
-  Future<void> _loadUserData() async {
-    final prefs = await SharedPreferences.getInstance();
+  @override
+  void didUpdateWidget(covariant HrAttendanceCal oldWidget) {
+    super.didUpdateWidget(oldWidget);
 
+    if (oldWidget.employeeCode != widget.employeeCode) {
+      _reloadEmployee();
+    }
+  }
+
+  Future<void> _reloadEmployee() async {
+    setState(() {
+      isLoading = true;
+      attendanceMap.clear();
+      breakTimeline.clear();
+      empName = "";
+      empDept = "";
+      empImage = "";
+    });
+
+    await _loadUserData();
+
+    DateTime now = DateTime.now();
+
+    await loadAttendanceForMonth(
+      now.year,
+      now.month,
+      forceRefresh: false,
+    );
+
+    setState(() {
+      selectedDay = now;
+      focusedDay = now;
+      showAttendanceCard = true;
+      isLoading = false;
+    });
+  }
+
+  Future<void> _loadUserData() async {
     setState(() {
       _userId = widget.employeeCode;
       _userCode = widget.employeeCode;
-
     });
 
-    _loadAttendanceData(_userId,
-        DateTime.now().year.toString(),
-        DateTime.now().month.toString());
+    await _loadAttendanceData(
+      _userId,
+      DateTime.now().year.toString(),
+      DateTime.now().month.toString(),
+    );
   }
-
   double _calcScaleFromWidth(double w) {
     const base = 475.0;
     final raw = (w / base);
@@ -119,7 +158,6 @@ class _HrAttendanceCalState extends State<HrAttendanceCal> with TickerProviderSt
     String deptID = prefs.getString('department') ?? "";
     String url =
         "https://hrms.attendify.ai/index.php/MobileApi/home?company_db=$companyDb&userid=$userId&cid=$cid&deptID=$deptID";
-
     try {
       final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
@@ -129,7 +167,6 @@ class _HrAttendanceCalState extends State<HrAttendanceCal> with TickerProviderSt
         setState(() {
           _currentDay = data['currentday']?.toString() ?? _currentDay;
           currentStatus = data['lateststatus'] ?? '';
-          /// ✅ ADD THIS
           _updateAttendanceStatus();
         });
       } else {
@@ -269,7 +306,8 @@ class _HrAttendanceCalState extends State<HrAttendanceCal> with TickerProviderSt
     String apiKey = prefs.getString('apiKey') ?? "";
     String companyDb = prefs.getString('companyDb') ?? "";
     String cid = prefs.getString('cid') ?? "";
-    String empCode = widget.employeeCode;
+    // String empCode = widget.employeeCode;
+    String empCode = _userCode;
 
     String url =
         "https://hrms.attendify.ai/index.php/MobileApi/empBreakHistory?employeeCode=$empCode&cid=$cid&date=$date";
@@ -341,6 +379,7 @@ class _HrAttendanceCalState extends State<HrAttendanceCal> with TickerProviderSt
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final scale = _calcScaleFromWidth(MediaQuery.of(context).size.width);
     return Scaffold(
       appBar: AppBar(
@@ -455,6 +494,7 @@ class _HrAttendanceCalState extends State<HrAttendanceCal> with TickerProviderSt
 
                   /// 👉 OPEN MODAL ONLY (don’t stop normal flow)
                   if (isEligibleForCheckout) {
+                    errorText = null;
                     _openCheckoutModal(key);
                   }
 
@@ -2197,6 +2237,68 @@ class _SizeReportingWidgetState extends State<SizeReportingWidget> {
     return Container(
       key: _key,
       child: widget.child,
+    );
+  }
+}
+// ===================================================================================
+
+
+class EmployeeSwipeScreen extends StatefulWidget {
+  final List<String> employeeList;
+  final int initialIndex;
+
+  const EmployeeSwipeScreen({
+    super.key,
+    required this.employeeList,
+    this.initialIndex = 0,
+  });
+
+  @override
+  State<EmployeeSwipeScreen> createState() => _EmployeeSwipeScreenState();
+}
+
+class _EmployeeSwipeScreenState extends State<EmployeeSwipeScreen> {
+  late PageController _pageController;
+  int currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: currentIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _preload(int index) {
+    if (index < 0 || index >= widget.employeeList.length) return;
+
+    // optional: you can trigger cache preload here if needed
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: PageView.builder(
+        controller: _pageController,
+        itemCount: widget.employeeList.length,
+        physics: const BouncingScrollPhysics(),
+        onPageChanged: (index) {
+          setState(() => currentIndex = index);
+
+          _preload(index + 1);
+          _preload(index - 1);
+        },
+        itemBuilder: (context, index) {
+          return HrAttendanceCal(
+            employeeCode: widget.employeeList[index],
+          );
+        },
+      ),
     );
   }
 }

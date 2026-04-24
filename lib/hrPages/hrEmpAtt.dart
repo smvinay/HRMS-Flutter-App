@@ -14,8 +14,6 @@ class HrEmployeeAtt extends StatefulWidget {
 }
 
 class _HrEmployeeAttState extends State<HrEmployeeAtt> {
-
-
   List allList = [];
   List filteredList = [];
 
@@ -25,6 +23,9 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
   String filter = "all"; // all | present | absent
 
   bool isSearchExpanded = false;
+
+  List<String> employeeCodes = [];
+  int currentIndex = 0;
 
   @override
   void initState() {
@@ -56,6 +57,7 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
       setState(() {
         allList = data["data"] ?? [];
         filteredList = List.from(allList);
+        employeeCodes = allList.map<String>((e) => e['emp_code'].toString()).toList();
         filter = 'all';
         loading = false;
       });
@@ -154,14 +156,6 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
               style: const TextStyle(fontSize: 11),
             ),
 
-          // if (hasDuration)
-          //   Text(
-          //     "$duration h",
-          //     style: const TextStyle(
-          //       fontSize: 10,
-          //       color: Colors.grey,
-          //     ),
-          //   ),
         ],
       );
     }
@@ -195,16 +189,19 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
     }
 
     return GestureDetector(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => HrAttendanceCal(
-                employeeCode: item['emp_code'], // 🔥 IMPORTANT
-              ),
+      onTap: () {
+        int index = employeeCodes.indexOf(item['emp_code'].toString());
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => EmployeeSwipeScreen(
+              employeeList: employeeCodes,
+              initialIndex: index, //  correct
             ),
-          );
-        },
+          ),
+        );
+      },
         child: Container(
       margin: EdgeInsets.only(bottom: _s(8, scale)),
       padding: EdgeInsets.symmetric(
@@ -599,7 +596,6 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
 
   @override
   Widget build(BuildContext context) {
-
     final scale = _calcScaleFromWidth(
       MediaQuery.of(context).size.width,
     );
@@ -609,10 +605,13 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Attendance List")),
+        appBar: AppBar(title: const Text("Attendance List")),
 
-      body: CustomScrollView(
-        slivers: [
+        body: RefreshIndicator(
+          onRefresh: fetchAttendanceList,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(), // 🔥 IMPORTANT
+            slivers: [
 
           SliverPersistentHeader(
             pinned: true,
@@ -642,6 +641,7 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
               ),
             ),
         ],
+      ),
       ),
     );
   }
