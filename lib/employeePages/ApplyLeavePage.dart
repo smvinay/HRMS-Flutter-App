@@ -1,9 +1,11 @@
 import 'dart:convert';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../employee_leave_details_page.dart';
 import '../widgets/toast.dart';
 
 class ApplyLeavePage extends StatefulWidget {
@@ -22,6 +24,7 @@ class ApplyLeavePage extends StatefulWidget {
 
 class _ApplyLeavePageState extends State<ApplyLeavePage>
     with TickerProviderStateMixin {
+
   late TabController _tabController;
   DateTime? fromDate;
   DateTime? toDate;
@@ -44,17 +47,39 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
   bool isSubmitting = false;
   bool isModalOpened = false;
   int activeLeaveId = 0;
+  Set<int> expandedIndex = {};
 
   late TextEditingController fromDateController;
   late TextEditingController toDateController;
   late TextEditingController daysController;
 
+
+  List teamLeaves = [];
+  List filteredTeamLeaves = [];
+  bool teamLoading = false;
+
+  String teamSearch = "";
+  String teamFilter = "all";
+
+  Map<String, String> teamLeaveTypes = {
+    "All": "All",
+  };
+
+  Map<String, String> teamStatusMap = {
+    "All": "All",
+    "0": "Pending",
+    "1": "Approved",
+    "2": "Rejected"
+  };
+
+  String selectedTeamLeaveType = "All";
+  String selectedTeamStatus = "All";
+
   @override
   void initState() {
     super.initState();
 
-    _tabController = TabController(length: 2, vsync: this);
-
+    _tabController = TabController(length: 3, vsync: this);
     fromDateController = TextEditingController();
     toDateController = TextEditingController();
     daysController = TextEditingController();
@@ -69,6 +94,7 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
     calculateDays();
 
     fetchLeaveData();
+    fetchTeamLeaves();
   }
 
   @override
@@ -122,6 +148,8 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
           leaveCount = data['LeavesCount_User'];
           myLeaves = data['userLeaves'];
 
+          // print("myLeaves $myLeaves");
+
           double pending = (leaveCount['pending'] ?? 0).toDouble();
 
           if (pending <= 0) {
@@ -130,7 +158,7 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
           }
         });
 
-        /// ✅ RESET FORM AFTER FETCH
+        ///  RESET FORM AFTER FETCH
         resetForm();
 
         if (activeLeaveId != 0 && myLeaves.isNotEmpty && !isModalOpened) {
@@ -149,6 +177,72 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
     });
   }
 
+  Future<void> fetchTeamLeaves() async {
+    setState(() => teamLoading = true);
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      String apiKey = prefs.getString('apiKey') ?? "";
+      String companyDb = prefs.getString('companyDb') ?? "";
+      String userID = prefs.getString('user_id') ?? "";
+      String levelId = prefs.getString('level_id') ?? "";
+
+      final response = await http.get(
+        Uri.parse(
+            "https://hrms.attendify.ai/index.php/MobileApi/allEmpLeaves?userId=$userID&levelId=$levelId"
+        ),
+        headers: {"apiKey": apiKey, "companyDb": companyDb},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        teamLeaves = data['userLeaves'] ?? [];
+
+        // print("teamLeaves $teamLeaves");
+
+        List types = data['leaveType'] ?? [];
+
+        teamLeaveTypes = {
+          "All": "All",
+          for (var e in types)
+            e['type'].toString(): e['type'].toString()
+        };
+
+        applyTeamFilter();
+      }
+    } catch (e) {
+      debugPrint(e.toString());
+    }
+
+    setState(() => teamLoading = false);
+  }
+
+  void applyTeamFilter() {
+    List temp = List.from(teamLeaves);
+
+    if (teamFilter == "approved") {
+      temp = temp.where((e) => e['approved'].toString() == "1").toList();
+    } else if (teamFilter == "rejected") {
+      temp = temp.where((e) => e['approved'].toString() == "2").toList();
+    } else if (teamFilter == "pending") {
+      temp = temp.where((e) => e['approved'].toString() == "0").toList();
+    }
+
+    if (selectedTeamLeaveType != "All") {
+      temp = temp.where((e) => e['type'] == selectedTeamLeaveType).toList();
+    }
+
+    if (selectedTeamStatus != "All") {
+      temp = temp.where((e) => e['approved'].toString() == selectedTeamStatus).toList();
+    }
+
+    setState(() {
+      filteredTeamLeaves = temp;
+    });
+  }
+
   void calculateDays() {
     if (leaveFor == "0.5") {
       days = 0.5;
@@ -160,7 +254,7 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
       }
     }
 
-    updateControllers(); // 🔥 ADD THIS
+    updateControllers(); //  ADD THIS
   }
 
   String formatDate(DateTime date) {
@@ -183,12 +277,12 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
       if (isFrom) {
         fromDate = picked;
 
-        /// ✅ Ensure To Date is not before From Date
+        ///  Ensure To Date is not before From Date
         if (toDate == null || toDate!.isBefore(picked)) {
           toDate = picked;
         }
 
-        /// ✅ Half day → force same date
+        ///  Half day → force same date
         if (leaveFor == "0.5") {
           toDate = picked;
         }
@@ -196,7 +290,7 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
         /// ❌ Block To Date change for Half Day
         if (leaveFor == "0.5") return;
 
-        /// ✅ Ensure To >= From
+        ///  Ensure To >= From
         if (picked.isBefore(fromDate!)) {
           toDate = fromDate;
         } else {
@@ -459,7 +553,7 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
           );
         },
 
-        /// 🔥 SMOOTH ANIMATION
+        ///  SMOOTH ANIMATION
         transitionsBuilder: (_, animation, __, child) {
           return SlideTransition(
             position: Tween<Offset>(
@@ -488,13 +582,6 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
     final scale = _calcScaleFromWidth(MediaQuery.of(context).size.width);
 
     return Scaffold(
-      // backgroundColor: Colors.grey.shade100,
-      // appBar: AppBar(
-      //   title: const Text("Leave"),
-      //   foregroundColor: Colors.white,
-      //   backgroundColor: const Color(0xFF0557a2),
-      // ),
-
       appBar: AppBar(
         title: Text(
           'Leave',
@@ -541,6 +628,7 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
                 tabs: const [
                   Tab(text: "Apply"),
                   Tab(text: "My Leaves"),
+                  Tab(text: "Team Leaves"),
                 ],
               )),
 
@@ -554,6 +642,8 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
               children: [
                 _applyTab(),
                 _listTab(),
+                _teamLeavesTab(),
+
               ],
             ),
           ),
@@ -574,7 +664,7 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
 
     reasonController.clear();
 
-    updateControllers(); // 🔥 must
+    updateControllers(); //  must
 
     setState(() {});
   }
@@ -942,7 +1032,7 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
               ],
             ),
 
-            /// 🔥 FIXED STRUCTURE
+            ///  FIXED STRUCTURE
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1118,83 +1208,169 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
                 /// ================= REASON =================
                 if ((item['reason'] ?? "").toString().isNotEmpty) ...[
                   const SizedBox(height: 8),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(Icons.notes,
-                          size: 14, color: Colors.grey),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          item['reason'],
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey.shade700,
+
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      bool overflow = isTextOverflow(
+                        item['reason'],
+                        constraints.maxWidth,
+                        const TextStyle(fontSize: 11),
+                      );
+
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.notes, size: 14, color: Colors.grey),
+                          const SizedBox(width: 6),
+
+                          Expanded(
+                            child: Text(
+                              item['reason'],
+                              maxLines: overflow
+                                  ? (expandedIndex.contains(index) ? null : 2)
+                                  : null,
+                              overflow: overflow
+                                  ? (expandedIndex.contains(index)
+                                  ? TextOverflow.visible
+                                  : TextOverflow.ellipsis)
+                                  : TextOverflow.visible,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey.shade700,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: getStatusColor(status)
-                              .withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          getStatusText(status),
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: getStatusColor(status),
+
+                          if (overflow)
+                            GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  if (expandedIndex.contains(index)) {
+                                    expandedIndex.remove(index);
+                                  } else {
+                                    expandedIndex.add(index);
+                                  }
+                                });
+                              },
+                              child: Icon(
+                                expandedIndex.contains(index)
+                                    ? Icons.expand_less
+                                    : Icons.expand_more,
+                                size: 18,
+                                color: Colors.grey,
+                              ),
+                            ),
+
+                          const SizedBox(width: 6),
+
+                          Container(
+                            padding:
+                            const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: getStatusColor(status).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              getStatusText(status),
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: getStatusColor(status),
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                    ],
+                        ],
+                      );
+                    },
                   ),
                 ],
 
                 if (status == 2) ...[
                   const SizedBox(height: 8),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(Icons.cancel,
-                          size: 14, color: Colors.red),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment:
-                          CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              item['rejected_by_name'] ?? "Rejected",
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.red.shade600,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            if ((item['reject_reason'] ?? "")
-                                .toString()
-                                .isNotEmpty)
-                              Text(
-                                item['reject_reason'],
-                                maxLines: 3,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.red.shade400,
+
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      bool overflow = isTextOverflow(
+                        item['reject_reason'],
+                        constraints.maxWidth,
+                        const TextStyle(fontSize: 11),
+                      );
+
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.cancel, size: 14, color: Colors.red),
+                          const SizedBox(width: 6),
+
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  item['updated_by_name'] ?? "Rejected",
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    // color: Colors.red.shade600,
+                                  ),
                                 ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
+                                const SizedBox(height: 2),
+
+                                if ((item['reject_reason'] ?? "")
+                                    .toString()
+                                    .isNotEmpty)
+                                  Row(
+                                    crossAxisAlignment:
+                                    CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          item['reject_reason'],
+                                          maxLines: overflow
+                                              ? (expandedIndex.contains(index)
+                                              ? null
+                                              : 2)
+                                              : null,
+                                          overflow: overflow
+                                              ? (expandedIndex.contains(index)
+                                              ? TextOverflow.visible
+                                              : TextOverflow.ellipsis)
+                                              : TextOverflow.visible,
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.grey,
+                                          ),
+                                        ),
+                                      ),
+
+                                      if (overflow)
+                                        GestureDetector(
+                                          onTap: () {
+                                            setState(() {
+                                              if (expandedIndex
+                                                  .contains(index)) {
+                                                expandedIndex.remove(index);
+                                              } else {
+                                                expandedIndex.add(index);
+                                              }
+                                            });
+                                          },
+                                          child: Icon(
+                                            expandedIndex.contains(index)
+                                                ? Icons.expand_less
+                                                : Icons.expand_more,
+                                            size: 18,
+                                            color: Colors.grey,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ],
               ],
@@ -1203,6 +1379,392 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
         },
       ),
     );
+  }
+
+  Widget _teamLeavesTab() {
+    return RefreshIndicator(
+      onRefresh: fetchTeamLeaves,
+      child: teamLoading
+          ? const Center(child: CircularProgressIndicator())
+          : filteredTeamLeaves.isEmpty
+          ? const Center(child: Text("No team leaves"))
+          : ListView.builder(
+        padding: const EdgeInsets.all(10),
+        itemCount: filteredTeamLeaves.length,
+        itemBuilder: (context, index) {
+          final item = filteredTeamLeaves[index];
+
+          int status = int.tryParse(item['approved'].toString()) ?? 0;
+
+          return GestureDetector(
+            onTap: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => EmployeeLeaveDetailsPage(
+                    userId: item['user_id'].toString(),
+                    empCode: item['employe_code'] ?? "",
+                    item: item,
+                  ),
+                ),
+              );
+
+              if (result == true) {
+                fetchTeamLeaves(); // refresh
+              }
+            },
+            child: leaveCard(item, index),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget leaveCard(Map item, int index) {
+    int status = int.tryParse(item['approved'].toString()) ?? 0;
+
+    DateTime applieDate = DateTime.parse(item['applied_date']);
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        // color: getStatusColor(status).withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.grey.withOpacity(0.2),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+
+          /// TOP ROW
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+
+              Expanded(
+                flex: 6,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+
+                    Row(
+                      children: [
+                        const Icon(Icons.access_time, size: 12, color: Colors.grey),
+                        const SizedBox(width: 4),
+                        Text(
+                          formatDateNew(applieDate.toString()),
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.grey.shade500,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 4),
+
+                    Text(
+                      item['type'] ?? "",
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+
+                    const SizedBox(height: 6),
+                    /// PROFILE + USER NAME (NEW TOP SECTION)
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 16,
+                          backgroundColor: Colors.grey.shade200,
+                          backgroundImage: item['profile_thumbnail'] != null &&
+                              item['profile_thumbnail'].toString().isNotEmpty
+                              ? NetworkImage(
+                              "https://hrms.attendify.ai/photos/${item['profile_thumbnail']}")
+                              : null,
+                          child: (item['profile_thumbnail'] == null ||
+                              item['profile_thumbnail'].toString().isEmpty)
+                              ? const Icon(Icons.person, size: 18, color: Colors.grey)
+                              : null,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            item['applied_username'] ?? "",
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                  ],
+                ),
+              ),
+
+              Expanded(
+                flex: 5,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+
+
+                    _statusChip(status),
+                    const SizedBox(height: 6),
+                    RichText(
+                      textAlign: TextAlign.right,
+                      text: TextSpan(
+                        children: [
+                          TextSpan(
+                            text:
+                            "${formatDateNew(item['from_date'])} - ${formatDateNew(item['to_date'])} ",
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w400, //  more weight
+                              color: Colors.black87,
+                            ),
+                          ),
+                          TextSpan(
+                            text:
+                            "(${item['days']} ${double.tryParse(item['days'].toString()) == 1 ? 'day' : 'days'})",
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        // const Icon(Icons.subdirectory_arrow_right, size: 14, color: Colors.grey),
+                        // const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            item['reporting_to_name'] ?? "",
+                            maxLines: 1,
+                            textAlign: TextAlign.end,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                        ),
+                      ],
+                    ),
+                    // const SizedBox(height: 6),
+                    // if (status == 0)
+                    //   // Row(
+                    //   //   mainAxisAlignment: MainAxisAlignment.end,
+                    //     // children: [
+                    //       // _actionBtn(
+                    //       //   icon: Icons.close,
+                    //       //   label: "Reject",
+                    //       //   color: Colors.red,
+                    //       //   onTap: () => rejectLeave(item['leave_id'].toString()),
+                    //       // ),
+                    //       // const SizedBox(width: 6),
+                    //       // _actionBtn(
+                    //       //   icon: Icons.check,
+                    //       //   label: "Approve",
+                    //       //   color: Colors.green,
+                    //       //   onTap: () => approveLeave(item['leave_id'].toString()),
+                    //       // ),
+                    //     // ],
+                    //   ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          /// REASON + EXPAND
+          if ((item['reason'] ?? "").toString().isNotEmpty) ...[
+            const SizedBox(height: 8),
+
+            LayoutBuilder(
+              builder: (context, constraints) {
+
+                bool overflow = isTextOverflow(
+                  item['reason'],
+                  constraints.maxWidth,
+                  TextStyle(fontSize: 11, height: 1.4),
+                );
+
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+
+                    const Icon(Icons.notes, size: 14, color: Colors.grey),
+                    const SizedBox(width: 6),
+
+                    Expanded(
+                      child: Text(
+                        item['reason'],
+                        maxLines: overflow
+                            ? (expandedIndex.contains(index) ? null : 2)
+                            : null,
+                        overflow: overflow
+                            ? (expandedIndex.contains(index)
+                            ? TextOverflow.visible
+                            : TextOverflow.ellipsis)
+                            : TextOverflow.visible,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade700,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+
+                    /// SHOW ICON ONLY IF OVERFLOW
+                    if (overflow)
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            if (expandedIndex.contains(index)) {
+                              expandedIndex.remove(index);
+                            } else {
+                              expandedIndex.add(index);
+                            }
+                          });
+                        },
+                        child: Icon(
+                          expandedIndex.contains(index)
+                              ? Icons.expand_less
+                              : Icons.expand_more,
+                          size: 18,
+                          color: Colors.grey,
+                        ),
+                      ),
+
+                    // const SizedBox(width: 6),
+                    // _statusChip(status),
+
+                  ],
+                );
+              },
+            ),
+          ],
+
+          if (status == 2 && (item['reject_reason'] ?? "").toString().isNotEmpty) ...[
+            const SizedBox(height: 10),
+
+            LayoutBuilder(
+              builder: (context, constraints) {
+
+                bool overflow = isTextOverflow(
+                  item['reject_reason'],
+                  constraints.maxWidth,
+                  TextStyle(fontSize: 11, height: 1.4),
+                );
+
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+
+                    const Icon(Icons.cancel, size: 14, color: Colors.red),
+                    const SizedBox(width: 6),
+
+                    Expanded(
+                      child: Text(
+                        item['reject_reason'],
+                        maxLines: overflow
+                            ? (expandedIndex.contains(index) ? null : 2)
+                            : null,
+                        overflow: overflow
+                            ? (expandedIndex.contains(index)
+                            ? TextOverflow.visible
+                            : TextOverflow.ellipsis)
+                            : TextOverflow.visible,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade700,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+
+                    /// SHOW ICON ONLY IF OVERFLOW
+                    if (overflow)
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            if (expandedIndex.contains(index)) {
+                              expandedIndex.remove(index);
+                            } else {
+                              expandedIndex.add(index);
+                            }
+                          });
+                        },
+                        child: Icon(
+                          expandedIndex.contains(index)
+                              ? Icons.expand_less
+                              : Icons.expand_more,
+                          size: 18,
+                          color: Colors.grey,
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String formatDateNew(String date) {
+    DateTime d = DateTime.parse(date);
+    return "${d.day}-${d.month}-${d.year}";
+  }
+
+  Widget _statusChip(int status) {
+    Color color = getStatusColor(status);
+    String text = getStatusText(status);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          color: color,
+        ),
+      ),
+    );
+  }
+
+  bool isTextOverflow(String text, double maxWidth, TextStyle style) {
+    final textSpan = TextSpan(text: text, style: style);
+
+    final tp = TextPainter(
+      text: textSpan,
+      maxLines: 2,
+      textDirection: ui.TextDirection.ltr,
+    );
+
+    tp.layout(maxWidth: maxWidth);
+
+    return tp.didExceedMaxLines;
   }
 
   InputDecoration premiumInput(String label, {IconData? icon}) {
@@ -1349,12 +1911,12 @@ class _EditLeaveModalState extends State<EditLeaveModal> {
       if (isFrom) {
         fromDate = picked;
 
-        /// ✅ Ensure To Date is not before From Date
+        ///  Ensure To Date is not before From Date
         if (toDate == null || toDate!.isBefore(picked)) {
           toDate = picked;
         }
 
-        /// ✅ Half day → force same date
+        ///  Half day → force same date
         if (leaveFor == "0.5") {
           toDate = picked;
         }
@@ -1424,7 +1986,7 @@ class _EditLeaveModalState extends State<EditLeaveModal> {
       final res = jsonDecode(response.body);
 
       if (response.statusCode == 200 && res['status'] == true) {
-        /// ✅ SUCCESS MESSAGE
+        ///  SUCCESS MESSAGE
         AppToast.show("Leave updated successfully");
 
         /// small delay for smooth UX
@@ -1446,7 +2008,7 @@ class _EditLeaveModalState extends State<EditLeaveModal> {
     }
   }
 
-  /// 🔥 SAME DESIGN AS APPLY TAB
+  ///  SAME DESIGN AS APPLY TAB
   @override
   Widget build(BuildContext context) {
     double scale = 1;
@@ -1475,7 +2037,7 @@ class _EditLeaveModalState extends State<EditLeaveModal> {
           ),
           child: Column(
             children: [
-              /// 🔥 SAME GRID LIKE APPLY
+              ///  SAME GRID LIKE APPLY
               Wrap(
                 spacing: 12,
                 runSpacing: 8,
@@ -1603,7 +2165,7 @@ class _EditLeaveModalState extends State<EditLeaveModal> {
 
               const SizedBox(height: 12),
 
-              /// 🔥 BUTTON
+              ///  BUTTON
               SizedBox(
                 child: ElevatedButton(
                   onPressed: updateLeave,

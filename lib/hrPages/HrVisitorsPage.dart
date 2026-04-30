@@ -252,7 +252,7 @@ class _HrVisitorsPageState extends State<HrVisitorsPage>
     showDialog(
       context: context,
       barrierColor: Colors.black87,
-      barrierDismissible: true, // ✅ click outside to close
+      barrierDismissible: true, //  click outside to close
       builder: (_) {
         final size = MediaQuery
             .of(context)
@@ -263,7 +263,7 @@ class _HrVisitorsPageState extends State<HrVisitorsPage>
           insetPadding: const EdgeInsets.symmetric(
             horizontal: 12,
             vertical: 40,
-          ), // ✅ space around dialog
+          ), //  space around dialog
           child: Stack(
             children: [
 
@@ -273,7 +273,7 @@ class _HrVisitorsPageState extends State<HrVisitorsPage>
                   onTap: () => Navigator.pop(context),
                   // child: Image.network(url, fit: BoxFit.contain),
                   child: Container(
-                    width: size.width * 0.95, // 🔥 slightly reduced
+                    width: size.width * 0.95, //  slightly reduced
                     constraints: BoxConstraints(
                       maxHeight: size.height * 0.85,
                     ),
@@ -297,7 +297,7 @@ class _HrVisitorsPageState extends State<HrVisitorsPage>
                   child: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.white, // ✅ white background
+                      color: Colors.white, //  white background
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(

@@ -1,9 +1,10 @@
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../employee_leave_details_page.dart';
+import '../global_state.dart';
 import 'hr_emp_att.dart';
 import 'hr_header.dart';
 import 'hr_drawer.dart';
@@ -20,6 +21,7 @@ class _HrDashboardState extends State<HrDashboard> {
 
   int present = 0;
   int absent = 0;
+  int leave = 0;
   int total = 0;
 
   int entry = 0;
@@ -35,11 +37,17 @@ class _HrDashboardState extends State<HrDashboard> {
   List<String> employeeCodes = [];
   int currentIndex = 0;
 
+  List pendingLeaves = [];
+  bool leaveLoading = true;
+  int pendingCount = 0;
+
   @override
   void initState() {
     super.initState();
     fetchDashboardCounts();
     fetchAttendanceList();
+    fetchPendingLeaves();
+    fetchLeaves();
   }
 
 
@@ -66,11 +74,11 @@ class _HrDashboardState extends State<HrDashboard> {
         );
 
       final data = json.decode(response.body);
-
       if (data["status"] == true) {
         setState(() {
           present = data["data"]["employees"]["present"];
           absent = data["data"]["employees"]["absent"];
+          leave = data["data"]["employees"]["leave"];
           total = data["data"]["employees"]["total"];
 
           entry = data["data"]["visitors"]["entry"];
@@ -83,6 +91,32 @@ class _HrDashboardState extends State<HrDashboard> {
 
     } catch (e) {
       print("Dashboard API Error: $e");
+    }
+  }
+
+  Future<void> fetchLeaves() async {
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      String apiKey = prefs.getString('apiKey') ?? "";
+      String companyDb = prefs.getString('companyDb') ?? "";
+      String userID = prefs.getString('user_id') ?? "";
+      String levelId = prefs.getString('level_id') ?? "";
+
+      final response = await http.get(
+        Uri.parse(
+            "https://hrms.attendify.ai/index.php/MobileApi/allEmpLeaves?userId=$userID&levelId=$levelId"),
+        headers: {"apiKey": apiKey, "companyDb": companyDb},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        pendingCount = data['pendingLeavesCount'] ?? 0;
+        pendingLeaveNotifier.value = data['pendingLeavesCount'] ?? 0;
+      }
+    } catch (e) {
+      debugPrint(e.toString());
     }
   }
 
@@ -121,6 +155,37 @@ class _HrDashboardState extends State<HrDashboard> {
     }
   }
 
+  Future<void> fetchPendingLeaves() async {
+    setState(() => leaveLoading = true);
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      String apiKey = prefs.getString('apiKey') ?? "";
+      String companyDb = prefs.getString('companyDb') ?? "";
+
+      final response = await http.get(
+        Uri.parse(
+            "https://hrms.attendify.ai/index.php/MobileApi/allEmpLeaves"),
+        headers: {"apiKey": apiKey, "companyDb": companyDb},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        List all = data['userLeaves'] ?? [];
+        pendingLeaves = all
+            .where((e) => e['approved'].toString() == "0")
+            .toList();
+      }
+    } catch (e) {
+      debugPrint(e.toString());
+    }finally{
+      setState(() => leaveLoading = false);
+    }
+  }
+
+
   double _calcScaleFromWidth(double w) {
     const base = 475.0;
     final raw = (w / base);
@@ -138,13 +203,15 @@ class _HrDashboardState extends State<HrDashboard> {
 
     return Scaffold(
       appBar: const HrHeader(),
-      drawer: HrDrawer(),
+      drawer: HrDrawer(pendingCount: pendingCount),
       bottomNavigationBar: const HrFooter(selectedIndex: 1),
 
       body: RefreshIndicator(
         onRefresh: () async {
           await fetchDashboardCounts();
           await fetchAttendanceList();
+          await fetchPendingLeaves();
+          await fetchLeaves();
         },
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(), //  IMPORTANT
@@ -154,26 +221,81 @@ class _HrDashboardState extends State<HrDashboard> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
 
-              const Text(
-                "Today's Attendance",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
+              const Text( "Today's Attendance",  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold), ),
               const SizedBox(height: 10),
-              /// Attendance Cards
               _attendanceGrid(scale),
               const SizedBox(height: 10),
-
               _attendanceListCard(scale),
-
               const SizedBox(height: 10),
 
-              const Text(
-                "Visitor Management",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
+              if (pendingLeaves.isNotEmpty)
+                Container(
+                    margin: const EdgeInsets.symmetric(vertical: 5),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      gradient: const LinearGradient(
+                        colors: [Colors.white, Color(0xFFF8FAFF)],
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.06),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+
+                        /// HEADER
+                        InkWell(
+                          borderRadius: BorderRadius.circular(8),
+                          onTap: () {
+                            Navigator.pushNamed(context, "/hr_empLeave");
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  "Pending Leave Requests",
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                Row(
+                                  children: [
+                                    Text(
+                                      "${pendingLeaves.length}",
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    const Icon(Icons.arrow_forward_ios, size: 12, color: Colors.grey),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 10),
+                        _pendingLeaveList(scale),
+                      ],
+                    ),
+                ),
 
               const SizedBox(height: 10),
-
+              const Text("Visitor Management",style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),),
+              const SizedBox(height: 10),
               _layoutVisitorGrid(scale),
             ],
           ),
@@ -206,24 +328,24 @@ class _HrDashboardState extends State<HrDashboard> {
         curve: Curves.easeInOut,
 
         padding: EdgeInsets.symmetric(
-          vertical: _s(10, scale),
-          horizontal: _s(10, scale),
+          vertical: _s(6, scale),
+          horizontal: _s(6, scale),
         ),
 
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(_s(12, scale)),
 
-          /// ✅ ALWAYS TOP BORDER (thicker now)
+          ///  ALWAYS TOP BORDER (thicker now)
           border: Border(
             top: BorderSide(
               color: color,
-              width: isActive ? 5 : 4, // 🔥 thicker + slight active boost
+              width: isActive ? 5 : 4, //  thicker + slight active boost
             ),
           ),
 
 
-          /// ✅ SHADOW
+          ///  SHADOW
           boxShadow: isActive
               ? [
             BoxShadow(
@@ -251,30 +373,33 @@ class _HrDashboardState extends State<HrDashboard> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
 
-            /// ICON
-            Container(
-              padding: EdgeInsets.all(_s(4, scale)),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.12),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                icon,
-                size: _s(20, scale),
-                color: color,
-              ),
-            ),
-
-            SizedBox(height: _s(5, scale)),
-
-            /// TITLE
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: _s(12, scale),
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  padding: EdgeInsets.all(_s(4, scale)),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    icon,
+                    size: _s(15, scale),
+                    color: color,
+                  ),
+                ),
+                SizedBox(width: _s(6, scale)),
+                Text(
+                  title,
+                  textAlign: TextAlign.start,
+                  style: TextStyle(
+                    fontSize: _s(12, scale),
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+              ],
             ),
 
             SizedBox(height: _s(5, scale)),
@@ -318,6 +443,15 @@ class _HrDashboardState extends State<HrDashboard> {
 
         return status.isEmpty || status == "ABSENT";
       }).toList();
+    } else if (selectedFilter == "leave") {
+      return attendanceList.where((e) {
+        String status = (e['is_leave'] ?? "")
+            .toString()
+            .trim()
+            .toUpperCase();
+
+        return  status == "LEAVE";
+      }).toList();
     }
 
     return attendanceList;
@@ -326,20 +460,21 @@ class _HrDashboardState extends State<HrDashboard> {
   Widget _attendanceGrid(double scale) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        int crossAxisCount = constraints.maxWidth > 640 ? 3 : 3;
+        int crossAxisCount = constraints.maxWidth > 640 ? 4 : 4;
         double crossAxisRation = constraints.maxWidth > 640 ? 1.4 : 1.2;
 
         return GridView.count(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           crossAxisCount: crossAxisCount,
-          mainAxisSpacing: _s(12, scale),
-          crossAxisSpacing: _s(12, scale),
+          mainAxisSpacing: _s(10, scale),
+          crossAxisSpacing: _s(10, scale),
           childAspectRatio: crossAxisRation,
           children: [
             _attendanceCard("Total", total.toString(), Colors.blue, Icons.people, scale, "all"),
             _attendanceCard("Present", present.toString(), Colors.green, Icons.check_circle, scale, "present"),
             _attendanceCard("Absent", absent.toString(), Colors.red, Icons.cancel, scale, "absent"),
+            _attendanceCard("Leave", leave.toString(), Colors.orange, Icons.calendar_today, scale, "leave"),
           ],
         );
       },
@@ -419,7 +554,7 @@ class _HrDashboardState extends State<HrDashboard> {
 
               const SizedBox(height: 10),
 
-              /// 🔥 SMOOTH EXPAND LIST
+              ///  SMOOTH EXPAND LIST
               AnimatedSize(
                 duration: const Duration(milliseconds: 300),
                 curve: Curves.easeInOut,
@@ -468,8 +603,10 @@ class _HrDashboardState extends State<HrDashboard> {
   Widget _attendanceRow(Map item, double scale) {
 
     String status = (item['status_text'] ?? "").toString().toUpperCase();
+    String isLeave = (item['is_leave'] ?? "").toString();
 
     Color statusColor;
+
 
     switch (status) {
       case "IN":
@@ -492,6 +629,11 @@ class _HrDashboardState extends State<HrDashboard> {
         statusColor = Colors.grey;
     }
 
+    if(isLeave.isNotEmpty){
+      statusColor = Colors.orange;
+    }
+
+
     final status_time = (item['status_time'] != null && item['status_time'].toString().isNotEmpty)
         ? item['status_time']
         : "";
@@ -510,7 +652,7 @@ class _HrDashboardState extends State<HrDashboard> {
       child: Row(
         children: [
 
-          /// 🔥 LEFT SIDE (CLICK → NAVIGATION)
+          ///  LEFT SIDE (CLICK → NAVIGATION)
           GestureDetector(
             onTap: () {
               int index = employeeCodes.indexOf(item['emp_code'].toString());
@@ -560,7 +702,7 @@ class _HrDashboardState extends State<HrDashboard> {
 
           const Spacer(),
 
-          /// 🔥 RIGHT SIDE (CLICK → EXPAND)
+          ///  RIGHT SIDE (CLICK → EXPAND)
           GestureDetector(
             onTap: () {
               setState(() {
@@ -618,6 +760,257 @@ class _HrDashboardState extends State<HrDashboard> {
     );
   }
 
+  Widget _pendingLeaveList(double scale) {
+    if (leaveLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (pendingLeaves.isEmpty) {
+      return const Text("No pending requests");
+    }
+
+    return Column(
+      children: pendingLeaves.take(5).map((leave) {
+        int status =
+            int.tryParse(leave['status']?.toString() ?? '0') ?? 0;
+
+        DateTime applieDate =
+            DateTime.tryParse(leave['applied_date'] ?? "") ??
+                DateTime.now();
+
+        DateTime fromDate =
+            DateTime.tryParse(leave['from_date'] ?? "") ??
+                DateTime.now();
+
+        DateTime toDate =
+            DateTime.tryParse(leave['to_date'] ?? "") ??
+                DateTime.now();
+
+        String img = leave['profile_thumbnail']?.toString() ?? "";
+
+        return GestureDetector(
+            onTap: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => EmployeeLeaveDetailsPage(
+                    userId: leave['user_id'].toString(),
+                    empCode: leave['employe_code'] ?? "",
+                    item: leave,
+                  ),
+                ),
+              );
+
+              if (result == true) {
+                await fetchDashboardCounts();
+                await fetchAttendanceList();
+                await fetchPendingLeaves();
+                await fetchLeaves();
+              }
+            },
+            child:Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: getStatusColor(status).withOpacity(0.08),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: getStatusColor(status).withOpacity(0.25),
+            ),
+          ),
+
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+
+              ///  TOP ROW
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+
+                  /// PROFILE
+                  CircleAvatar(
+                    radius: 16,
+                    backgroundImage: img.isNotEmpty
+                        ? NetworkImage(
+                        "https://hrms.attendify.ai/photos/$img")
+                        : null,
+                    child: img.isEmpty
+                        ? const Icon(Icons.person, size: 16)
+                        : null,
+                  ),
+
+                  const SizedBox(width: 10),
+
+                  /// MAIN CONTENT
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+
+                        /// NAME + STATUS
+                        Row(
+                          mainAxisAlignment:
+                          MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                leave['applied_username'] ?? "",
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+
+                            const SizedBox(width: 6),
+
+                            Container(
+                              padding:
+                              const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: getStatusColor(status)
+                                    .withOpacity(0.1),
+                                borderRadius:
+                                BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                getStatusText(status),
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: getStatusColor(status),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 4),
+
+                        /// TYPE + DATE
+                        Row(
+                          mainAxisAlignment:
+                          MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              leave['type'] ?? "",
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+
+                            Text(
+                              "${formatDate(fromDate)} - ${formatDate(toDate)}",
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
+
+
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              /// APPLIED DATE + DAYS
+              Row(
+                mainAxisAlignment:
+                MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.access_time,
+                          size: 12,
+                          color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Text(
+                        formatDate(applieDate),
+                        style: TextStyle(
+                          fontSize: 10,
+                          color:
+                          Colors.grey.shade500,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  Text(
+                    "${leave['days']} days",
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+              ///  REASON (FIXED POSITION)
+              if ((leave['reason'] ?? "").toString().isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.notes,
+                        size: 14, color: Colors.grey),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        leave['reason'],
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+  String formatDate(DateTime date) {
+    return DateFormat('dd-MM-yyyy').format(date);
+  }
+
+  Color getStatusColor(int status) {
+    switch (status) {
+      case 1:
+        return Colors.green;
+      case 2:
+        return Colors.red;
+      case 3:
+        return Colors.grey;
+      default:
+        return Colors.orange;
+    }
+  }
+
+  String getStatusText(int status) {
+    switch (status) {
+      case 1:
+        return "Approved";
+      case 2:
+        return "Rejected";
+      case 3:
+        return "Withdrawn";
+      default:
+        return "Pending";
+    }
+  }
 
   Widget _layoutVisitorGrid(double scale) {
     return LayoutBuilder(

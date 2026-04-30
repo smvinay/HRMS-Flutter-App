@@ -49,7 +49,6 @@ class _EmpNotificationPageState extends State<EmpNotificationPage> {
       );
 
       final result = json.decode(response.body);
-print(result);
       if(result['status']==true){
 
         setState(() {

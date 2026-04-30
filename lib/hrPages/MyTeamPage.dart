@@ -4,11 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
 import 'EditEmployeePage.dart';
-import 'hr_drawer.dart';
-import 'hr_footer.dart';
-import 'hr_header.dart';
 
 class MyTeamPage extends StatefulWidget {
   const MyTeamPage({super.key});
@@ -84,9 +80,17 @@ class _MyTeamPageState extends State<MyTeamPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const HrHeader(),
-      drawer: HrDrawer(),
-      bottomNavigationBar: const HrFooter(selectedIndex: 0),
+      appBar: AppBar(
+        title: Text(
+          'Employee',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+          ),
+        ),
+        backgroundColor: const Color(0xFF0557a2),
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
       body: Stack(
         children: [
           Column(
@@ -341,7 +345,7 @@ class _MyTeamPageState extends State<MyTeamPage> {
 
     String path = image.path.toLowerCase();
 
-    /// ✅ VALIDATE FILE TYPE
+    ///  VALIDATE FILE TYPE
     if (!(path.endsWith('.jpg') ||
         path.endsWith('.jpeg') ||
         path.endsWith('.png'))) {

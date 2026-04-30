@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 
 class HrFooter extends StatelessWidget {
-  final int selectedIndex;
+  final int? selectedIndex;
 
   const HrFooter({super.key, required this.selectedIndex});
 
   void _onTabSelected(BuildContext context, int index) {
     String route = '';
 
-    if (index == 0) route = '/myTeam';
+    if (index == 0) route = '/hr_empatt';
     if (index == 1) route = '/HrDashboard';
     if (index == 2) route = '/hr_visitors';
 
@@ -72,7 +72,7 @@ class HrFooter extends StatelessWidget {
                 child: _footerItem(
                   context,
                   Icons.groups,
-                  "Employees",
+                  "Attendance",
                   0,
                 ),
               ),

@@ -495,13 +495,13 @@ class _VisitorFormPageState extends State<VisitorFormPage>
 
           final isSelected = index == _selectedIndex;
 
-          // ✅ Show name if exists else serial number
+          //  Show name if exists else serial number
           final displayName =
           (v.firstName != null && v.firstName!.trim().isNotEmpty)
               ? v.firstName!
               : "Visitor ${index + 1}";
 
-          // ✅ Extract only time (HH:mm:ss)
+          //  Extract only time (HH:mm:ss)
           String displayTime = "- - -";
           if (v.checkInTime != null && v.checkInTime!.contains(" ")) {
             displayTime = v.checkInTime!.split(" ")[1]; // only time
@@ -524,7 +524,7 @@ class _VisitorFormPageState extends State<VisitorFormPage>
                 ..scale(isSelected ? 1.06 : 1.0),
               decoration: BoxDecoration(
                 color: isSelected
-                    ? const Color(0xFFE8F1FF) // ✅ Light blue active color
+                    ? const Color(0xFFE8F1FF) //  Light blue active color
                     : Colors.white,
                 borderRadius: BorderRadius.circular(8),
                 boxShadow: [
@@ -1270,7 +1270,7 @@ class _VisitorFormPageState extends State<VisitorFormPage>
               "Data submitted successfully",
               Colors.green.shade300);
 
-          /// ✅ OPTION 1: REMOVE VISITOR (Better UX)
+          ///  OPTION 1: REMOVE VISITOR (Better UX)
           setState(() {
 
             _visitors.removeAt(index);

@@ -17,7 +17,7 @@ import 'package:http_parser/http_parser.dart';
 
 class SelfAttendanceCamera extends StatefulWidget {
   final String? attStatus;
-  final VoidCallback? onSuccess;   // ✅ callback
+  final VoidCallback? onSuccess;   //  callback
 
   const SelfAttendanceCamera({
     super.key,
@@ -124,7 +124,7 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
     );
 
     if (pickedImage != null) {
-      _showLoading(); // ✅ SHOW IMMEDIATELY (FIRST LINE)
+      _showLoading(); //  SHOW IMMEDIATELY (FIRST LINE)
 
       File imageFile = File(pickedImage.path);
 
@@ -204,7 +204,7 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
     final time = DateFormat('HH:mm:ss').format(now);
 
 
-// ✅ Approximate width (since measureText doesn't exist)
+//  Approximate width (since measureText doesn't exist)
     final font = img.arial48;
     final padding = 20;
     final lineSpacing = 10;
@@ -218,10 +218,10 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
     String line2 = '';
 
     if (parts.length >= 4) {
-      // 🔥 Last 3 parts → line2
+      //  Last 3 parts → line2
       line2 = parts.sublist(parts.length - 4).join(', ');
 
-      // 🔥 Remaining → line1
+      //  Remaining → line1
       line1 = parts.sublist(0, parts.length - 4).join(', ');
     } else {
       // fallback
@@ -234,7 +234,7 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
     final text3 = line1;
     final text4 = line2;
 
-// ✅ Smart width (based on image, not text)
+//  Smart width (based on image, not text)
     int boxWidth = (original.width * 0.95).toInt(); // almost full width
     int boxHeight =
         (font.lineHeight * 4) + (lineSpacing * 3) + padding * 2;
@@ -290,7 +290,7 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
       color: img.ColorRgb8(255, 255, 255),
     );
     // =========================
-    // ✅ STEP 3: SAVE
+    //  STEP 3: SAVE
     // =========================
     final tempDir = await getTemporaryDirectory();
     final path = '${tempDir.path}/watermarked_${DateTime.now().millisecondsSinceEpoch}.jpg';
@@ -332,7 +332,7 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
             address = p['formatted'] ?? "Location not available";
           }
 
-          // 🔥 Replace highway naming (same as your PHP)
+          //  Replace highway naming (same as your PHP)
           if (address.contains('NH')) {
             address = address.replaceAll('NH', 'National Highway ');
           }
@@ -525,7 +525,7 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
 
     String? address = prefs.getString('address');
 
-    // ✅ If address missing OR placeholder
+    //  If address missing OR placeholder
     if (address == null || address.trim().isEmpty || address == "...") {
 
       //  Try fetching fresh immediately
@@ -562,12 +562,12 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
       shouldRefresh = diff > (10 * 60 * 1000); // 10 minutes
     }
 
-    // 🔥 Background refresh (only if needed)
+    //  Background refresh (only if needed)
     if (shouldRefresh) {
       await updateLocationAndAddressInBackground(); // don't await
     }
 
-    // ✅ Return cached instantly
+    //  Return cached instantly
     if (lat != null && lng != null) {
       return Position(
         latitude: lat,
@@ -600,7 +600,7 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
       await prefs.setDouble('latitude', position.latitude);
       await prefs.setDouble('longitude', position.longitude);
 
-      // 🔥 IMPORTANT: store temporary value first
+      //  IMPORTANT: store temporary value first
       await prefs.setString('address', "...");
 
       String address = await getAddressFromGeoapify(
@@ -668,7 +668,7 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
           String savedVersion = prefs.getString(ackVersionKey) ?? "";
           bool accepted = prefs.getBool(ackStatusKey) ?? false;
 
-          /// ✅ compare version
+          ///  compare version
           if (savedVersion == policyId.toString() && accepted) {
             _showAttendanceConfirmDialog();
           } else {
@@ -846,11 +846,11 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
   Future<void> _handleAck(bool accepted) async {
     final prefs = await SharedPreferences.getInstance();
 
-    // ✅ store version + status
+    //  store version + status
     await prefs.setBool(ackStatusKey, accepted);
     await prefs.setString(ackVersionKey, policyId.toString());
 
-    // ✅ send to backend
+    //  send to backend
     await _sendAckToServer(accepted);
 
     if (accepted) {
@@ -989,7 +989,7 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
       barrierDismissible: false,
       builder: (_) => Stack(
         children: [
-          /// 🔥 BACKGROUND BLUR
+          ///  BACKGROUND BLUR
           BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
             child: Container(
@@ -997,7 +997,7 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
             ),
           ),
 
-          /// 🔥 CENTER GLASS CARD
+          ///  CENTER GLASS CARD
           Center(
             child: Container(
               padding: EdgeInsets.all(20),
@@ -1005,7 +1005,7 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
 
-                /// 🔥 GLASS EFFECT
+                ///  GLASS EFFECT
                 color: Colors.white.withOpacity(0.08),
 
               border: Border.all(
@@ -1024,7 +1024,7 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  /// 🔥 ANIMATED ICON
+                  ///  ANIMATED ICON
                   TweenAnimationBuilder(
                     tween: Tween(begin: 0.8, end: 1.2),
                     duration: Duration(milliseconds: 800),
@@ -1044,12 +1044,12 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
 
                   SizedBox(height: 15),
 
-                  /// 🔥 TEXT
+                  ///  TEXT
                   _typingText(),
 
                   SizedBox(height: 15),
 
-                  /// 🔥 PROGRESS BAR
+                  ///  PROGRESS BAR
                   ClipRRect(
                     borderRadius: BorderRadius.circular(10),
                     child: LinearProgressIndicator(

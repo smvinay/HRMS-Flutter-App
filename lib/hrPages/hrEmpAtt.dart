@@ -4,7 +4,10 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'hr_drawer.dart';
 import 'hr_emp_att.dart';
+import 'hr_footer.dart';
+import 'hr_header.dart';
 
 class HrEmployeeAtt extends StatefulWidget {
   const HrEmployeeAtt({super.key});
@@ -136,7 +139,7 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
     bool hasLast = last != null && last.isNotEmpty;
     bool hasDuration = duration != "--" && duration != "0.00";
 
-    // ✅ FULL DAY (Present / Half Day)
+    //  FULL DAY (Present / Half Day)
     if ((status == "Present" || status == "Half Day") && hasFirst && hasLast) {
       return Text(
         "${formatTime(first)} - ${formatTime(last)}",
@@ -144,7 +147,7 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
       );
     }
 
-    // ✅ IN / OUT (LIVE)
+    //  IN / OUT (LIVE)
     if (status == "IN" || status == "OUT") {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.end,
@@ -355,7 +358,7 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
 
         SizedBox(width: _s(5, scale)),
 
-        /// 🔥 SEGMENT (auto fit remaining space)
+        ///  SEGMENT (auto fit remaining space)
         Expanded(
           child: slidingSegment(scale),
         ),
@@ -528,7 +531,7 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
           return Stack(
             children: [
 
-              /// 🔥 SLIDING BG (PERFECT WIDTH)
+              ///  SLIDING BG (PERFECT WIDTH)
               AnimatedPositioned(
                 duration: const Duration(milliseconds: 250),
                 curve: Curves.easeInOut,
@@ -605,12 +608,14 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
     }
 
     return Scaffold(
-        appBar: AppBar(title: const Text("Attendance List")),
+      appBar: const HrHeader(),
+      drawer: HrDrawer(),
+      bottomNavigationBar: const HrFooter(selectedIndex: 0),
 
         body: RefreshIndicator(
           onRefresh: fetchAttendanceList,
           child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(), // 🔥 IMPORTANT
+            physics: const AlwaysScrollableScrollPhysics(), //  IMPORTANT
             slivers: [
 
           SliverPersistentHeader(
@@ -624,7 +629,7 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
             ),
           ),
 
-          /// 🔥 HANDLE LOADING / EMPTY
+          ///  HANDLE LOADING / EMPTY
           if (loading || filteredList.isEmpty)
             SliverToBoxAdapter(
               child: loading

@@ -3,8 +3,13 @@ import 'package:hive/hive.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../global_state.dart';
+
 class HrDrawer extends StatefulWidget {
   @override
+  final int pendingCount;
+
+  HrDrawer({this.pendingCount = 0});
   _HrDrawerState createState() => _HrDrawerState();
 }
 
@@ -35,7 +40,7 @@ class _HrDrawerState extends State<HrDrawer> {
       child: Column(
         children: [
 
-          /// ✅ FULL TOP HEADER (NO PADDING)
+          ///  FULL TOP HEADER (NO PADDING)
           SizedBox(
             height: 110,
             child: DrawerHeader(
@@ -72,7 +77,7 @@ class _HrDrawerState extends State<HrDrawer> {
             ),
           ),
 
-          /// ✅ SCROLLABLE MENU
+          ///  SCROLLABLE MENU
           Expanded(
             child: ListView(
               padding: EdgeInsets.zero,
@@ -80,12 +85,19 @@ class _HrDrawerState extends State<HrDrawer> {
                 _item(context, Icons.dashboard, "Home", route: "/HrDashboard"),
                 _item(context, Icons.groups, "Employees", route: "/myTeam"),
                 _item(context, Icons.access_time, "Attendance", route: "/hr_empatt"),
+                _itemWithBadge(
+                  context,
+                  Icons.calendar_today,
+                  "Leaves",
+                  route: "/hr_empLeave",
+                  count: widget.pendingCount,
+                ),
                 _item(context, Icons.person, "Visitors", route: "/hr_visitors"),
               ],
             ),
           ),
 
-          /// ✅ ONLY BOTTOM SAFE
+          ///  ONLY BOTTOM SAFE
           SafeArea(
             top: false,
             child: Column(
@@ -198,6 +210,61 @@ class _HrDrawerState extends State<HrDrawer> {
             Navigator.pushNamed(context, route);
           });
           // Navigator.pushNamed(context, route);
+        }
+      },
+    );
+  }
+
+  Widget _itemWithBadge(
+      BuildContext context,
+      IconData icon,
+      String title, {
+        String? route,
+        VoidCallback? onTap,
+        int count = 0, //  ADD THIS
+      }) {
+    return ListTile(
+      leading: Icon(icon),
+      title: Row(
+        children: [
+          Expanded(child: Text(title)),
+
+          ///  PREMIUM BADGE
+          ValueListenableBuilder<int>(
+            valueListenable: pendingLeaveNotifier,
+            builder: (context, count, _) {
+              if (count <= 0) return const SizedBox();
+
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0557A2).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: const Color(0xFF0557A2).withOpacity(0.3),
+                  ),
+                ),
+                child: Text(
+                  "${count > 99 ? '99+' : count}",
+                  style: const TextStyle(
+                    color: Color(0xFF0557A2),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              );
+            },
+          )
+        ],
+      ),
+      onTap: () {
+        if (onTap != null) {
+          onTap();
+        } else if (route != null) {
+          Navigator.pop(context);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            Navigator.pushNamed(context, route);
+          });
         }
       },
     );

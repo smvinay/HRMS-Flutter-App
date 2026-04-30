@@ -69,7 +69,7 @@ class _EditEmployeePageState extends State<EditEmployeePage> {
 
     String path = image.path.toLowerCase();
 
-    /// ✅ FILE TYPE VALIDATION
+    ///  FILE TYPE VALIDATION
     if (!(path.endsWith('.jpg') ||
         path.endsWith('.jpeg') ||
         path.endsWith('.png'))) {
@@ -84,7 +84,7 @@ class _EditEmployeePageState extends State<EditEmployeePage> {
 
     File file = File(image.path);
 
-    /// ✅ FILE SIZE VALIDATION (1MB)
+    ///  FILE SIZE VALIDATION (1MB)
     final fileSize = await file.length();
     if (fileSize > 4 * 1024 * 1024) {
       ScaffoldMessenger.of(context).showSnackBar(

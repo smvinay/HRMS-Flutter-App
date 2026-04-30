@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/adapters.dart';
+import 'package:hrms_attendify_app/TeamLeaves.dart';
 import 'package:hrms_attendify_app/splash_screen.dart';
 import 'employeePages/ApplyLeavePage.dart';
 import 'employeePages/AttendanceCal.dart';
@@ -71,7 +72,7 @@ class MyApp extends StatelessWidget {
         '/myTeam': (context) => MyTeamPage(),
         '/hr_visitors': (context) => HrVisitorsPage(),
         '/hr_empatt': (context) => HrEmployeeAtt(),
-        '/hr_emp_att': (context) => HrEmployeeAtt(),
+        '/hr_empLeave': (context) => TeamLeaves(),
 
       },
     );

@@ -34,6 +34,7 @@ class _AttendanceCalState extends State<AttendanceCal> {
   String totalBreak = "";
   String loadedMonthKey = "";
   String? errorText;
+  bool isWithdrawing = false;
   String _getCacheKey(int year, int month) {
     return "attendance_${year}_$month";
   }
@@ -95,7 +96,7 @@ class _AttendanceCalState extends State<AttendanceCal> {
           _currentDay = data['currentday']?.toString() ?? _currentDay;
           currentStatus = data['lateststatus'] ?? '';
 
-          /// ✅ ADD THIS
+          ///  ADD THIS
           _updateAttendanceStatus();
         });
       } else {
@@ -108,11 +109,12 @@ class _AttendanceCalState extends State<AttendanceCal> {
 
   Future<void> loadAttendanceForMonth(int year, int month,
       {bool forceRefresh = false}) async {
-
     final prefs = await SharedPreferences.getInstance();
     final box = Hive.box('attendanceBox');
 
-    String userId = prefs.getString('employe_code') ?? "";
+    String apiKey = prefs.getString('apiKey') ?? "";
+    String userCode = prefs.getString('employe_code') ?? "";
+    String userId = prefs.getString('user_id') ?? "";
     String companyDb = prefs.getString('companyDb') ?? "";
     String deptId = prefs.getString('department') ?? "0";
     String cid = prefs.getString('cid') ?? "0";
@@ -123,9 +125,8 @@ class _AttendanceCalState extends State<AttendanceCal> {
     final now = DateTime.now();
     final isCurrentMonth = (year == now.year && month == now.month);
 
-    bool shouldUseCache = !forceRefresh &&
-        box.containsKey(cacheKey) &&
-        !isCurrentMonth;
+    bool shouldUseCache =
+        !forceRefresh && box.containsKey(cacheKey) && !isCurrentMonth;
 
     if (shouldUseCache) {
       final cachedData = box.get(cacheKey);
@@ -142,18 +143,31 @@ class _AttendanceCalState extends State<AttendanceCal> {
     setState(() => isLoading = true);
 
     String url =
-        "https://hrms.attendify.ai/index.php/MobileApi/get_empattendacedata?company_db=$companyDb&userid=$userId&year=$year&month=$month";
+        "https://hrms.attendify.ai/index.php/MobileApi/get_empattendacedata?company_db=$companyDb&userid=$userCode&year=$year&month=$month";
 
     String holidayUrl =
         "https://hrms.attendify.ai/index.php/MobileApi/get_daysholiday?company_db=$companyDb&cid=$cid&year=$year&month=$month&deptID=$deptId";
+
+    String leaveUrl =
+        "https://hrms.attendify.ai/index.php/MobileApi/employeeLeavedetails";
 
     try {
       final response = await http.get(Uri.parse(url));
       final holidayResponse = await http.get(Uri.parse(holidayUrl));
 
+      final leaveresponse = await http.post(
+        Uri.parse(leaveUrl),
+        headers: {"apiKey": apiKey, "companyDb": companyDb},
+        body: {
+          "cid": cid,
+          "user_id": userId,
+          "code": userCode,
+        },
+      );
+
       Map<String, dynamic> temp = {};
 
-      /// 🔥 ATTENDANCE
+      ///  ATTENDANCE
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
 
@@ -173,7 +187,46 @@ class _AttendanceCalState extends State<AttendanceCal> {
         }
       }
 
-      /// 🔥 HOLIDAYS
+      ///  LEAVE DATA
+      if (leaveresponse.statusCode == 200) {
+        final leaveData = json.decode(leaveresponse.body);
+        if (leaveData != null && leaveData['userLeaves'] != null) {
+          for (var item in leaveData['userLeaves']) {
+            int status = int.tryParse(item['approved'].toString()) ?? 0;
+
+            ///  FILTER ONLY 0 & 1
+            if (status != 0 && status != 1) continue;
+            DateTime start = DateTime.parse(item['from_date']);
+            DateTime end = DateTime.parse(item['to_date']);
+
+            for (DateTime d = start;
+            !d.isAfter(end);
+            d = d.add(Duration(days: 1))) {
+              String date = DateFormat('yyyy-MM-dd').format(d);
+
+              temp[date] = {
+                ...(temp[date] ?? {}),
+                "leaves": [
+                  ...((temp[date]?['leaves'] ?? []) as List),
+                  {
+                    "leave_id": item['leave_id'],
+                    "applied_date": item['applied_date'],
+                    "status": status,
+                    "reason": item['reason'] ?? "",
+                    "reporting_to_name": item['reporting_to_name'] ?? "",
+                    "type": item['type'] ?? "",
+                    "days": item['days'],
+                    "from_date": item['from_date'],
+                    "to_date": item['to_date'],
+                  }
+                ]
+              };
+            }
+          }
+        }
+      }
+
+      ///  HOLIDAYS
       if (holidayResponse.statusCode == 200) {
         final holidayData = json.decode(holidayResponse.body);
 
@@ -194,7 +247,7 @@ class _AttendanceCalState extends State<AttendanceCal> {
         }
       }
 
-      /// ✅ SAVE TO CACHE
+      ///  SAVE TO CACHE
       await box.put(cacheKey, temp);
 
       setState(() {
@@ -202,7 +255,6 @@ class _AttendanceCalState extends State<AttendanceCal> {
         loadedMonthKey = "${year}_$month";
         isLoading = false;
       });
-
     } catch (e) {
       print("API error: $e");
 
@@ -314,11 +366,11 @@ class _AttendanceCalState extends State<AttendanceCal> {
           );
 
           setState(() {
-            /// ✅ Reset calendar to today
+            ///  Reset calendar to today
             selectedDay = now;
             focusedDay = now;
 
-            /// ✅ Show updated card
+            ///  Show updated card
             showAttendanceCard = false;
           });
         },
@@ -369,19 +421,49 @@ class _AttendanceCalState extends State<AttendanceCal> {
 
                   String key = DateFormat('yyyy-MM-dd').format(selectedDate);
 
-                  bool isHoliday =
-                      attendanceMap.containsKey(key) &&
-                          attendanceMap[key]['holidaystatus'] == "Holiday";
-
-                  /// Block future dates only if NOT holiday
-                  if (selectedDate.isAfter(todayDate) && !isHoliday) {
-                    return;
-                  }
-
-                  /// 🔥 ADD THIS BLOCK (NEW LOGIC)
                   bool hasData = attendanceMap.containsKey(key);
 
+                  bool isHoliday = hasData &&
+                      attendanceMap[key]['holidaystatus'] == "Holiday";
 
+                  ///  CHECK LEAVE FIRST (IMPORTANT)
+                  bool hasLeave =
+                      hasData && attendanceMap[key]['leaves'] != null;
+
+                  int leaveId = 0;
+
+                  bool isApprovedLeave = false;
+
+                  if (hasLeave) {
+                    List leaves = attendanceMap[key]['leaves'];
+
+                    ///  get first leave id (you can change logic if multiple)
+                    leaveId = int.tryParse(
+                        (leaves.first['leave_id'] ?? "0").toString()) ??
+                        0;
+
+                    isApprovedLeave =
+                        leaves.any((l) => l['status'] == 1);
+                  }
+
+                  ///  NAVIGATION
+                  // if (selectedDate.isAfter(todayDate) &&
+                  //     !isHoliday &&
+                  //     !isApprovedLeave) {
+                  //
+                  //   Navigator.push(
+                  //     context,
+                  //     MaterialPageRoute(
+                  //       builder: (_) => ApplyLeavePage(
+                  //         selectedDate: selectedDate,
+                  //         leaveId: leaveId,   //  PASS HERE
+                  //       ),
+                  //     ),
+                  //   );
+                  //   return;
+                  // }
+
+                  /// 👉 CHECKOUT LOGIC
                   bool latestStatus = hasData &&
                       attendanceMap[key]['lateststatus'] == "checkin";
 
@@ -398,13 +480,12 @@ class _AttendanceCalState extends State<AttendanceCal> {
                   bool isEligibleForCheckout =
                       isPastDay && hasCheckIn && latestStatus;
 
-                  /// 👉 OPEN MODAL ONLY (don’t stop normal flow)
                   if (isEligibleForCheckout) {
                     errorText = null;
                     _openCheckoutModal(key);
                   }
 
-                  /// ✅ KEEP YOUR ORIGINAL FLOW
+                  ///  NORMAL FLOW
                   setState(() {
                     selectedDay = selected;
                     focusedDay = focused;
@@ -424,7 +505,7 @@ class _AttendanceCalState extends State<AttendanceCal> {
                   loadAttendanceForMonth(
                     newFocusedDay.year,
                     newFocusedDay.month,
-                  ); // ✅ uses cache
+                  ); //  uses cache
                 },
                 headerStyle: const HeaderStyle(
                   formatButtonVisible: false,
@@ -493,7 +574,7 @@ class _AttendanceCalState extends State<AttendanceCal> {
       context: context,
       builder: (_) {
         return Dialog(
-          backgroundColor: Colors.white, // ✅ white bg
+          backgroundColor: Colors.white, //  white bg
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
@@ -781,10 +862,10 @@ class _AttendanceCalState extends State<AttendanceCal> {
       final box = Hive.box('attendanceBox');
       String cacheKey = "attendance_${selectedDate.year}_${selectedDate.month}";
 
-      /// 🔥 DELETE OLD CACHE
+      ///  DELETE OLD CACHE
       await box.delete(cacheKey);
 
-      /// 🔥 RELOAD THAT MONTH
+      ///  RELOAD THAT MONTH
       await loadAttendanceForMonth(
         selectedDate.year,
         selectedDate.month,
@@ -824,7 +905,7 @@ class _AttendanceCalState extends State<AttendanceCal> {
     String currentMonthKey = "${date.year}_${date.month}";
     bool isMonthLoaded = currentMonthKey == loadedMonthKey;
 
-    /// 🔥 SHIFT END TIME (today)
+    ///  SHIFT END TIME (today)
     DateTime shiftEnd = DateTime(
       today.year,
       today.month,
@@ -833,28 +914,42 @@ class _AttendanceCalState extends State<AttendanceCal> {
       30, // minute
     );
 
-    bool isTodayDate =
-        date.year == today.year &&
-            date.month == today.month &&
-            date.day == today.day;
+    bool isTodayDate = date.year == today.year &&
+        date.month == today.month &&
+        date.day == today.day;
 
     bool isBeforeShiftEnd = today.isBefore(shiftEnd);
 
     bool hasData = attendanceMap.containsKey(key);
-    bool isHoliday = hasData && attendanceMap[key]['holidaystatus'] == "Holiday";
-    bool latestStatus = hasData &&
-        attendanceMap[key]['lateststatus'] == "checkin";
+    bool isHoliday =
+        hasData && attendanceMap[key]['holidaystatus'] == "Holiday";
+    bool latestStatus =
+        hasData && attendanceMap[key]['lateststatus'] == "checkin";
 
-    bool hasCheckIn = hasData && (attendanceMap[key]['checkin'] != null && attendanceMap[key]['checkin'] != "");
-    bool hasCheckOut = hasData && (attendanceMap[key]['checkout'] != null && attendanceMap[key]['checkout'] != "");
+    bool hasCheckIn = hasData &&
+        (attendanceMap[key]['checkin'] != null &&
+            attendanceMap[key]['checkin'] != "");
+    bool hasCheckOut = hasData &&
+        (attendanceMap[key]['checkout'] != null &&
+            attendanceMap[key]['checkout'] != "");
     bool isCheckInOnly = hasCheckIn && !hasCheckOut;
-    bool isPastDay = date.isBefore(DateTime(today.year, today.month, today.day));
+    bool isPastDay =
+    date.isBefore(DateTime(today.year, today.month, today.day));
     bool isAbsent = isMonthLoaded && !hasData && isPastDay;
-    bool isWeekend = date.weekday == DateTime.saturday || date.weekday == DateTime.sunday;
-    bool isEligibleForCheckout =
-        isPastDay &&
-            hasCheckIn &&
-            latestStatus;
+    bool isWeekend =
+        date.weekday == DateTime.saturday || date.weekday == DateTime.sunday;
+    bool isEligibleForCheckout = isPastDay && hasCheckIn && latestStatus;
+
+    List leaves = attendanceMap[key]?['leaves'] ?? [];
+
+    bool isHalfDay = leaves.any((l) => l['days'].toString() == '0.5');
+    bool isApproved = leaves.any((l) => l['status'] == 1);
+    bool hasLeave = leaves.isNotEmpty;
+
+    if (hasLeave) {
+      List leaves = attendanceMap[key]['leaves'];
+      isApproved = leaves.any((l) => l['status'] == 1);
+    }
 
     Color bgColor = Colors.white;
     Color textColor = Colors.black87;
@@ -875,11 +970,9 @@ class _AttendanceCalState extends State<AttendanceCal> {
       textColor = Colors.blue.shade800;
     }
 
-
     /// Present (Check-in + Check-out)
     else if (hasCheckIn && hasCheckOut) {
-
-      /// 🔥 TODAY → check shift timing
+      ///  TODAY → check shift timing
       if (isTodayDate && isBeforeShiftEnd) {
         /// STILL WORKING → BLUE
         bgColor = Colors.blue.shade100;
@@ -896,7 +989,6 @@ class _AttendanceCalState extends State<AttendanceCal> {
       bgColor = Colors.red.shade100;
       textColor = Colors.red.shade800;
     }
-
 
     if (isHoliday) {
       border = Border.all(
@@ -920,7 +1012,6 @@ class _AttendanceCalState extends State<AttendanceCal> {
 
     return Stack(
       children: [
-
         /// MAIN DAY CIRCLE
         AnimatedContainer(
           duration: const Duration(milliseconds: 300),
@@ -970,16 +1061,35 @@ class _AttendanceCalState extends State<AttendanceCal> {
               ),
             ),
           ),
+
+        ///  LEAVE ICON
+        if (hasLeave)
+          Positioned(
+            top: isEligibleForCheckout ? 16 : 2,
+            right: 2,
+            child: Container(
+              padding: EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                color: isApproved ? Colors.green : Colors.grey,
+                shape: BoxShape.circle,
+              ),
+              child: Text(
+                isHalfDay ? "HL" : "L",
+                style: TextStyle(
+                  fontSize: _s(8, scale),
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }
 
 
   Widget buildSelectedAttendance() {
-    final scale = _calcScaleFromWidth(MediaQuery
-        .of(context)
-        .size
-        .width);
+    final scale = _calcScaleFromWidth(MediaQuery.of(context).size.width);
 
     String key = DateFormat('yyyy-MM-dd').format(selectedDay);
 
@@ -1018,13 +1128,12 @@ class _AttendanceCalState extends State<AttendanceCal> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-
           /// DATE
           dateHeader,
 
           SizedBox(height: _s(10, scale)),
 
-          /// 🔶 HOLIDAY SECTION (if exists)
+          ///  HOLIDAY SECTION (if exists)
           if (isHoliday) ...[
             Container(
               padding: EdgeInsets.all(_s(10, scale)),
@@ -1053,7 +1162,226 @@ class _AttendanceCalState extends State<AttendanceCal> {
             SizedBox(height: _s(10, scale)),
           ],
 
-          /// ✅ ATTENDANCE ALWAYS SHOW (if data exists)
+          if (data['leaves'] != null) ...[
+            ...List.generate(data['leaves'].length, (i) {
+              var leave = data['leaves'][i];
+
+              int status = leave['status'] ?? 0;
+              bool isApproved = status == 1;
+
+              DateTime today = DateTime.now();
+              DateTime fromDate = DateTime.parse(leave['from_date']);
+              DateTime applieDate = DateTime.parse(leave['applied_date']);
+
+              DateTime todayDate = DateTime(today.year, today.month, today.day);
+              DateTime fromDateOnly =
+              DateTime(fromDate.year, fromDate.month, fromDate.day);
+
+              bool isFutureOrToday = !fromDateOnly.isBefore(todayDate);
+
+              bool showWithdraw =
+                  (status == 0) || (status == 1 && isFutureOrToday);
+
+              return Container(
+                margin: EdgeInsets.only(bottom: _s(8, scale)),
+                padding: EdgeInsets.all(_s(10, scale)),
+                decoration: BoxDecoration(
+                  color: getStatusColor(status).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(_s(10, scale)),
+                  border: Border.all(color: getStatusColor(status).withOpacity(0.5)),
+                ),
+
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+
+                    ///  TOP ROW (MATCH LIST TAB)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+
+                        /// LEFT (flex 5)
+                        Expanded(
+                          flex: 5,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+
+                              /// Applied Date
+                              Row(
+                                children: [
+                                  const Icon(Icons.access_time,
+                                      size: 12, color: Colors.grey),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    formatDate(applieDate),
+                                    style: TextStyle(
+                                      fontSize: _s(10, scale),
+                                      color: Colors.grey.shade500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+
+                              SizedBox(height: _s(2, scale)),
+
+                              /// Leave Type
+                              Text(
+                                leave['type'] ?? "",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: _s(13, scale),
+                                ),
+                              ),
+
+                              SizedBox(height: _s(4, scale)),
+
+                              Row(
+                                children: [
+                                  const Icon(Icons.person_outline,
+                                      size: 14, color: Colors.grey),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      leave['reporting_to_name'] ?? "",
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: _s(4, scale)),
+
+                              /// Reason
+                              if ((leave['reason'] ?? "").toString().isNotEmpty)
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Icon(
+                                      Icons.notes,
+                                      size: 14,
+                                      color: Colors.grey,
+                                    ),
+                                    SizedBox(width: _s(4, scale)),
+                                    Expanded(
+                                      child: Text(
+                                        leave['reason'],
+                                        maxLines: 3,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: _s(11, scale),
+                                          color: Colors.grey.shade700,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                            ],
+                          ),
+                        ),
+
+                        SizedBox(width: _s(8, scale)),
+
+                        /// RIGHT (flex 4)
+                        Expanded(
+                          flex: 4,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+
+                              /// Date Range
+                              Text(
+                                "${formatDate(DateTime.parse(leave['from_date']))} - ${formatDate(DateTime.parse(leave['to_date']))}",
+                                textAlign: TextAlign.right,
+                                style: TextStyle(
+                                  fontSize: _s(11, scale),
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+
+                              SizedBox(height: _s(4, scale)),
+
+                              /// Days
+                              Text(
+                                "${leave['days']} days",
+                                style: TextStyle(
+                                  fontSize: _s(11, scale),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+
+                              SizedBox(height: _s(6, scale)),
+
+                              /// Status + Withdraw
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+
+                                  /// STATUS
+                                  Container(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: _s(8, scale),
+                                      vertical: _s(2, scale),
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: getStatusColor(status).withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Text(
+                                      getStatusText(status),
+                                      style: TextStyle(
+                                        fontSize: _s(10, scale),
+                                        fontWeight: FontWeight.w600,
+                                        color: getStatusColor(status),
+                                      ),
+                                    ),
+                                  ),
+
+                                  SizedBox(width: _s(6, scale)),
+
+                                  /// ONLY WITHDRAW (NO EDIT)
+                                  if (showWithdraw)
+                                    GestureDetector(
+                                      onTap: () {
+                                        withdrawLeave(
+                                            leave['leave_id'].toString());
+                                      },
+                                      child: Container(
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: _s(8, scale),
+                                          vertical: _s(2, scale),
+                                        ),
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(20),
+                                          border:
+                                          Border.all(color: Colors.orange),
+                                          color: Colors.orange.withOpacity(0.1),
+                                        ),
+                                        child: const Icon(
+                                          Icons.outbound,
+                                          size: 14,
+                                          color: Colors.orange,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            }),
+            SizedBox(height: _s(10, scale)),
+          ],
+          ///  ATTENDANCE ALWAYS SHOW (if data exists)
           if (data['checkin'] != null)
             Row(
               children: [
@@ -1081,6 +1409,110 @@ class _AttendanceCalState extends State<AttendanceCal> {
         ],
       ),
     );
+  }
+
+  String formatDate(DateTime date) {
+    return DateFormat('dd-MM-yyyy').format(date);
+  }
+
+  Color getStatusColor(int status) {
+    switch (status) {
+      case 1:
+        return Colors.green;
+      case 2:
+        return Colors.red;
+      case 3:
+        return Colors.grey;
+      default:
+        return Colors.orange;
+    }
+  }
+
+  String getStatusText(int status) {
+    switch (status) {
+      case 1:
+        return "Approved";
+      case 2:
+        return "Rejected";
+      case 3:
+        return "Withdrawn";
+      default:
+        return "Pending";
+    }
+  }
+
+  Future<void> withdrawLeave(String leaveId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Confirm"),
+        content: const Text("Are you sure you want to withdraw this leave?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Yes"),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      setState(() => isWithdrawing = true);
+      final prefs = await SharedPreferences.getInstance();
+
+      String apiKey = prefs.getString('apiKey') ?? "";
+      String companyDb = prefs.getString('companyDb') ?? "";
+
+      final response = await http.post(
+        Uri.parse(
+            "https://hrms.attendify.ai/index.php/Setting/leave_withdrawn_web"),
+        headers: {
+          "apiKey": apiKey,
+          "companyDb": companyDb,
+        },
+        body: {
+          "id": leaveId,
+        },
+      );
+
+      final res = jsonDecode(response.body);
+
+      if (res['status'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Leave withdrawn successfully")),
+        );
+
+        DateTime now = DateTime.now();
+        await _loadUserData();
+        await loadAttendanceForMonth(
+          now.year,
+          now.month,
+          forceRefresh: true,
+        );
+
+        setState(() {
+          selectedDay = now;
+          focusedDay = now;
+          showAttendanceCard = false;
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(res['message'] ?? "Failed to withdraw")),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Something went wrong")),
+      );
+    } finally {
+      setState(() => isWithdrawing = false);
+    }
   }
 
   Widget _buildAttendanceBox(
@@ -1164,7 +1596,7 @@ class _AttendanceCalState extends State<AttendanceCal> {
     showDialog(
       context: context,
       barrierColor: Colors.black87,
-      barrierDismissible: true, // ✅ click outside to close
+      barrierDismissible: true, //  click outside to close
       builder: (_) {
         final size = MediaQuery.of(context).size;
 
@@ -1173,7 +1605,7 @@ class _AttendanceCalState extends State<AttendanceCal> {
           insetPadding: const EdgeInsets.symmetric(
             horizontal: 12,
             vertical: 40,
-          ), // ✅ space around dialog
+          ), //  space around dialog
           child: Stack(
             children: [
               /// Image Container
@@ -1182,7 +1614,7 @@ class _AttendanceCalState extends State<AttendanceCal> {
                   onTap: () => Navigator.pop(context),
                   // child: Image.network(url, fit: BoxFit.contain),
                   child: Container(
-                    width: size.width * 0.95, // 🔥 slightly reduced
+                    width: size.width * 0.95, //  slightly reduced
                     constraints: BoxConstraints(
                       maxHeight: size.height * 0.85,
                     ),
@@ -1206,7 +1638,7 @@ class _AttendanceCalState extends State<AttendanceCal> {
                   child: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.white, // ✅ white background
+                      color: Colors.white, //  white background
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
@@ -1289,6 +1721,7 @@ class _AttendanceCalState extends State<AttendanceCal> {
     );
   }
 
+
   Widget buildBreakTable() {
     final scale = _calcScaleFromWidth(MediaQuery.of(context).size.width);
     String key = DateFormat('yyyy-MM-dd').format(selectedDay);
@@ -1302,7 +1735,24 @@ class _AttendanceCalState extends State<AttendanceCal> {
     }
     final size = MediaQuery.of(context).size;
     final isWide = size.width > 650;
-    double colWidth = isWide ? 100 : 100;
+    double colWidth = isWide ? 100 : 110;
+
+    TextStyle timeStyle = TextStyle(
+      fontSize: _s(12, scale),
+      fontWeight: FontWeight.w500,
+      color: Colors.black87,
+    );
+
+    TextStyle subTimeStyle = TextStyle(
+      fontSize: _s(11, scale),
+      color: Colors.grey.shade600,
+    );
+
+    TextStyle labelStyle = TextStyle(
+      fontSize: _s(10, scale),
+      fontWeight: FontWeight.w500,
+      color: Colors.grey,
+    );
 
     return Container(
       margin: const EdgeInsets.only(top: 10, bottom: 15),
@@ -1315,22 +1765,10 @@ class _AttendanceCalState extends State<AttendanceCal> {
       child: Column(
         children: [
 
-          /// HEADER
-          Center(
-            child: Text(
-              "Day Log",
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: _s(15, scale),
-              ),
-            ),
-          ),
-
-          SizedBox(height: _s(12, scale)),
 
           Row(
             children: [
-              Expanded(child: _topBox("Duration", totalDuration, scale)),
+              // Expanded(child: _topBox("Duration", totalDuration, scale)),
               Expanded(child: _topBox("Working", totalWork, scale, color: Colors.green)),
               Expanded(child: _topBox("Break", totalBreak, scale, color: Colors.red)),
             ],
@@ -1351,7 +1789,7 @@ class _AttendanceCalState extends State<AttendanceCal> {
                     // _cell("Sl.No", _s(60, scale), isHeader: true),
                     _cell("From", _s(colWidth, scale), isHeader: true),
                     _cell("To", _s(colWidth, scale), isHeader: true),
-                    _cell("Duration", _s(colWidth, scale), isHeader: true),
+                    // _cell("Duration", _s(colWidth, scale), isHeader: true),
                     _cell("Working", _s(colWidth, scale), isHeader: true),
                     _cell("Break", _s(colWidth, scale), isHeader: true),
                   ],
@@ -1377,9 +1815,6 @@ class _AttendanceCalState extends State<AttendanceCal> {
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
 
-                        // _cell("${index + 1}", _s(60, scale)),
-                        // _cell("${index + 1}", _s(60, scale)),
-
                         /// FROM
                         SizedBox(
                           width: _s(colWidth, scale),
@@ -1388,7 +1823,7 @@ class _AttendanceCalState extends State<AttendanceCal> {
                                 ? Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text(row['from_time'] ?? "-"),
+                                Text(row['from_time'] ?? "-" , style: timeStyle),
                               ],
                             )
                                 : isStatus
@@ -1403,10 +1838,10 @@ class _AttendanceCalState extends State<AttendanceCal> {
                                     Text("IN"),
                                   ],
                                 ),
-                                Text(row['start_time_text'] ?? "-"),
+                                Text(row['start_time_text'] ?? "-" , style: timeStyle),
                               ],
                             )
-                                : Text(row['from_time'] ?? "-"),
+                                : Text(row['from_time'] ?? "-" , style: timeStyle),
                           ),
                         ),
 
@@ -1418,35 +1853,18 @@ class _AttendanceCalState extends State<AttendanceCal> {
                                 ? Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text(row['to_time'] ?? "-"),
+                                Text(row['to_time'] ?? "-",style: timeStyle),
                               ],
                             )
                                 : isStatus
                                 ? Text("-")
-                                : Text(row['to_time'] ?? "-"),
-                          ),
-                        ),
-
-                        SizedBox(
-                          width: _s(colWidth, scale),
-                          child: Center(
-                            child: isStatus ? Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: Colors.green.shade100,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text("Live"),
-                            ) : Text(
-                              row['duration_text'] ?? "-",
-                              textAlign: TextAlign.center,
-                            ),
+                                : Text(row['to_time'] ?? "-",style: timeStyle),
                           ),
                         ),
 
                         /// WORK
                         SizedBox(
-                          width: _s(colWidth, scale),
+                          width: _s(colWidth + 10, scale),
                           child: Center(
                             child: isWork
                                 ? Container(
@@ -1455,9 +1873,29 @@ class _AttendanceCalState extends State<AttendanceCal> {
                                 color: Colors.green.shade100,
                                 borderRadius: BorderRadius.circular(4),
                               ),
-                              child: Text(row['duration_text'] ?? "-"),
+                              child: Text(
+                                row['duration_text'] ?? "-",
+                                style: TextStyle(
+                                  fontSize: _s(11, scale),
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.green.shade800,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
                             )
-                                :const Text("-"),
+                                :isStatus ? Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade100,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text("Live" , style: TextStyle(
+                                fontSize: _s(11, scale),
+                                fontWeight: FontWeight.w500,
+                                color: Colors.green.shade800,
+                              ),),
+                            ) :
+                            const Text("-"),
                           ),
                         ),
 
@@ -1472,7 +1910,15 @@ class _AttendanceCalState extends State<AttendanceCal> {
                                 color: Colors.orange.shade200,
                                 borderRadius: BorderRadius.circular(4),
                               ),
-                              child: Text(row['duration_text'] ?? "-"),
+                              child: Text(
+                                row['duration_text'] ?? "-",
+                                style: TextStyle(
+                                  fontSize: _s(11, scale),
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.orange.shade900,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
                             )
                                 : const Text("-"),
                           ),
@@ -1488,6 +1934,7 @@ class _AttendanceCalState extends State<AttendanceCal> {
       ),
     );
   }
+
 
   /// HEADER + CELL
   Widget _cell(String text, double width, {bool isHeader = false}) {

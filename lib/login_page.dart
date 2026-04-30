@@ -415,7 +415,7 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ),
 
-                          /// 🔥 SWITCH TO PASSWORD
+                          ///  SWITCH TO PASSWORD
                           Align(
                             alignment: Alignment.centerRight,
                             child: TextButton(

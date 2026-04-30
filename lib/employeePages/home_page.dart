@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:table_calendar/table_calendar.dart';
+import '../global_state.dart';
 import 'ApplyLeavePage.dart';
 import 'emp_drawer.dart';
 import 'header.dart';
@@ -47,6 +48,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   String totalDuration = "";
   String totalBreak = "";
   bool _isUpdatingLocation = false;
+
+  int pendingCount = 0;
 
   Map<String, dynamic> summaryData = {};
   late AnimationController animationController;
@@ -121,7 +124,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
       await prefs.setDouble('latitude', position.latitude);
       await prefs.setDouble('longitude', position.longitude);
-      // 🔥 IMPORTANT: store temporary value first
+      //  IMPORTANT: store temporary value first
       await prefs.setString('address', "...");
 
       String address = await getAddressFromGeoapify(
@@ -172,7 +175,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             address = p['formatted'] ?? "Location not available";
           }
 
-          // 🔥 Replace highway naming (same as your PHP)
+          //  Replace highway naming (same as your PHP)
           if (address.contains('NH')) {
             address = address.replaceAll('NH', 'National Highway ');
           }
@@ -212,7 +215,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     });
 
     // Call API to fetch attendance data
+
     _loadAttendanceData(_userId, selectedYear, selectedMonth);
+    fetchLeaves();
   }
 
   double _calcScaleFromWidth(double w) {
@@ -249,7 +254,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           _latestCheckInTime = data['latestCheckin'] ?? '';
           currentStatus = data['lateststatus'] ?? '';
 
-          /// ✅ ADD THIS
+          ///  ADD THIS
           _updateAttendanceStatus();
         });
       } else {
@@ -257,6 +262,32 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       }
     } catch (e) {
       print("Error fetching attendance data: $e");
+    }
+  }
+
+  Future<void> fetchLeaves() async {
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      String apiKey = prefs.getString('apiKey') ?? "";
+      String companyDb = prefs.getString('companyDb') ?? "";
+      String userID = prefs.getString('user_id') ?? "";
+      String levelId = prefs.getString('level_id') ?? "";
+
+      final response = await http.get(
+        Uri.parse(
+            "https://hrms.attendify.ai/index.php/MobileApi/allEmpLeaves?userId=$userID&levelId=$levelId"),
+        headers: {"apiKey": apiKey, "companyDb": companyDb},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        pendingCount = data['pendingLeavesCount'] ?? 0;
+        pendingLeaveNotifier.value = data['pendingLeavesCount'] ?? 0;
+      }
+    } catch (e) {
+      debugPrint(e.toString());
     }
   }
 
@@ -347,7 +378,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           for (var item in leaveData['userLeaves']) {
             int status = int.tryParse(item['approved'].toString()) ?? 0;
 
-            /// ✅ FILTER ONLY 0 & 1
+            ///  FILTER ONLY 0 & 1
             if (status != 0 && status != 1) continue;
             DateTime start = DateTime.parse(item['from_date']);
             DateTime end = DateTime.parse(item['to_date']);
@@ -400,7 +431,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         }
       }
 
-      /// ✅ SAVE TO CACHE
+      ///  SAVE TO CACHE
       await box.put(cacheKey, temp);
 
       setState(() {
@@ -478,7 +509,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     List<Map<String, dynamic>> finalList = [];
     int? lastWorkEndIndex;
     for (var item in breakTimeline) {
-      /// ✅ WORK ONLY
+      ///  WORK ONLY
       if (item['type'] == 'work') {
         finalList.add({
           'time': item['from_time'],
@@ -512,13 +543,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       }
 
       if (item['type'] == 'break') {
-        /// 🔥 APPLY BREAK DURATION TO PREVIOUS CHECKOUT
+        ///  APPLY BREAK DURATION TO PREVIOUS CHECKOUT
         if (lastWorkEndIndex != null) {
           finalList[lastWorkEndIndex]['duration'] = item['duration_text'];
         }
       }
 
-      /// 🔥 ADD LIVE STATUS NODE
+      ///  ADD LIVE STATUS NODE
       if (item['type'] == 'status' && item['is_live'] == true) {
         finalList.add({
           'time': item['start_time_text'],
@@ -580,7 +611,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     final scale = _calcScaleFromWidth(MediaQuery.of(context).size.width);
     return Scaffold(
-      drawer: CustomDrawer(currentRoute: '/home'),
+      drawer: CustomDrawer(
+        currentRoute: '/home',
+        pendingCount: pendingCount,
+      ),
       appBar: const Header(),
       body: RefreshIndicator(
         onRefresh: () async {
@@ -683,7 +717,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   bool isHoliday = hasData &&
                       attendanceMap[key]['holidaystatus'] == "Holiday";
 
-                  /// ✅ CHECK LEAVE FIRST (IMPORTANT)
+                  ///  CHECK LEAVE FIRST (IMPORTANT)
                   bool hasLeave =
                       hasData && attendanceMap[key]['leaves'] != null;
 
@@ -694,7 +728,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   if (hasLeave) {
                     List leaves = attendanceMap[key]['leaves'];
 
-                    /// ✅ get first leave id (you can change logic if multiple)
+                    ///  get first leave id (you can change logic if multiple)
                     leaveId = int.tryParse(
                         (leaves.first['leave_id'] ?? "0").toString()) ??
                         0;
@@ -703,7 +737,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         leaves.any((l) => l['status'] == 1);
                   }
 
-                  /// 🚀 NAVIGATION
+                  ///  NAVIGATION
                   if (selectedDate.isAfter(todayDate) &&
                       !isHoliday &&
                       !isApprovedLeave) {
@@ -713,7 +747,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       MaterialPageRoute(
                         builder: (_) => ApplyLeavePage(
                           selectedDate: selectedDate,
-                          leaveId: leaveId,   // ✅ PASS HERE
+                          leaveId: leaveId,   //  PASS HERE
                         ),
                       ),
                     );
@@ -742,7 +776,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     _openCheckoutModal(key);
                   }
 
-                  /// ✅ NORMAL FLOW
+                  ///  NORMAL FLOW
                   setState(() {
                     selectedDay = selected;
                     focusedDay = focused;
@@ -761,7 +795,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   loadAttendanceForMonth(
                     newFocusedDay.year,
                     newFocusedDay.month,
-                  ); // ✅ uses cache
+                  ); //  uses cache
                 },
                 headerStyle: const HeaderStyle(
                   formatButtonVisible: false,
@@ -830,7 +864,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       context: context,
       builder: (_) {
         return Dialog(
-          backgroundColor: Colors.white, // ✅ white bg
+          backgroundColor: Colors.white, //  white bg
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
@@ -1118,10 +1152,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       final box = Hive.box('attendanceBox');
       String cacheKey = "attendance_${selectedDate.year}_${selectedDate.month}";
 
-      /// 🔥 DELETE OLD CACHE
+      ///  DELETE OLD CACHE
       await box.delete(cacheKey);
 
-      /// 🔥 RELOAD THAT MONTH
+      ///  RELOAD THAT MONTH
       await loadAttendanceForMonth(
         selectedDate.year,
         selectedDate.month,
@@ -1387,7 +1421,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     String currentMonthKey = "${date.year}_${date.month}";
     bool isMonthLoaded = currentMonthKey == loadedMonthKey;
 
-    /// 🔥 SHIFT END TIME (today)
+    ///  SHIFT END TIME (today)
     DateTime shiftEnd = DateTime(
       today.year,
       today.month,
@@ -1454,7 +1488,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
     /// Present (Check-in + Check-out)
     else if (hasCheckIn && hasCheckOut) {
-      /// 🔥 TODAY → check shift timing
+      ///  TODAY → check shift timing
       if (isTodayDate && isBeforeShiftEnd) {
         /// STILL WORKING → BLUE
         bgColor = Colors.blue.shade100;
@@ -1544,10 +1578,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             ),
           ),
 
-        /// ✅ LEAVE ICON
+        ///  LEAVE ICON
         if (hasLeave)
           Positioned(
-            top: 2,
+            top: isEligibleForCheckout ? 16 : 2,
             right: 2,
             child: Container(
               padding: EdgeInsets.all(3),
@@ -1614,7 +1648,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
           SizedBox(height: _s(10, scale)),
 
-          /// 🔶 HOLIDAY SECTION (if exists)
+          ///  HOLIDAY SECTION (if exists)
           if (isHoliday) ...[
             Container(
               padding: EdgeInsets.all(_s(10, scale)),
@@ -1671,17 +1705,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   borderRadius: BorderRadius.circular(_s(10, scale)),
                   border: Border.all(color: getStatusColor(status).withOpacity(0.5)),
                 ),
-                // decoration: BoxDecoration(
-                //   color: Colors.white,
-                //   borderRadius: BorderRadius.circular(_s(10, scale)),
-                //   boxShadow: [
-                //     BoxShadow(
-                //       color: Colors.black.withOpacity(0.04),
-                //       blurRadius: 4,
-                //       offset: const Offset(0, 2),
-                //     )
-                //   ],
-                // ),
 
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1873,7 +1896,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             }),
             SizedBox(height: _s(10, scale)),
           ],
-          /// ✅ ATTENDANCE ALWAYS SHOW (if data exists)
+          ///  ATTENDANCE ALWAYS SHOW (if data exists)
           if (data['checkin'] != null)
             Row(
               children: [
@@ -2089,7 +2112,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     showDialog(
       context: context,
       barrierColor: Colors.black87,
-      barrierDismissible: true, // ✅ click outside to close
+      barrierDismissible: true, //  click outside to close
       builder: (_) {
         final size = MediaQuery.of(context).size;
 
@@ -2098,7 +2121,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           insetPadding: const EdgeInsets.symmetric(
             horizontal: 12,
             vertical: 40,
-          ), // ✅ space around dialog
+          ), //  space around dialog
           child: Stack(
             children: [
               /// Image Container
@@ -2107,7 +2130,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   onTap: () => Navigator.pop(context),
                   // child: Image.network(url, fit: BoxFit.contain),
                   child: Container(
-                    width: size.width * 0.95, // 🔥 slightly reduced
+                    width: size.width * 0.95, //  slightly reduced
                     constraints: BoxConstraints(
                       maxHeight: size.height * 0.85,
                     ),
@@ -2131,7 +2154,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   child: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.white, // ✅ white background
+                      color: Colors.white, //  white background
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
@@ -2293,7 +2316,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   timeline.length,
                   (i) => Padding(
                     padding: EdgeInsets.symmetric(
-                        vertical: _s(25, scale)), // 🔥 SPACE
+                        vertical: _s(25, scale)), //  SPACE
                     child: _nodeItem(timeline[i], scale),
                   ),
                 ),
@@ -2390,7 +2413,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     String endImage = item['end_image'] ?? "";
     String liveImage = item['last_image'] ?? "";
 
-    /// 🔥 PICK IMAGE
+    ///  PICK IMAGE
     String imageUrlthumb =
         isLive ? liveImagethumb : (isCheckIn ? startImagethumb : endImagethumb);
 
@@ -2402,7 +2425,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
     String fullImageUrl = imageUrl;
 
-    /// 🔥 APPLY BLINK ONLY FOR LIVE
+    ///  APPLY BLINK ONLY FOR LIVE
     return _buildCardUI(
       item,
       scale,
@@ -2648,7 +2671,7 @@ class RoadMapPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..color = isWork ? Colors.green : Colors.red;
 
-      /// 🔥 BUILD PATH
+      ///  BUILD PATH
       Path path = Path();
       path.moveTo(startX, startY);
 
@@ -2680,10 +2703,10 @@ class RoadMapPainter extends CustomPainter {
         path.lineTo(endX, endY);
       }
 
-      /// ✅ DRAW LINE (ONLY ONCE)
+      ///  DRAW LINE (ONLY ONCE)
       canvas.drawPath(path, paint);
 
-      /// 🔥 DRAW DURATION BADGE (ON TOP)
+      ///  DRAW DURATION BADGE (ON TOP)
       if (current['duration'] != null &&
           current['duration'].toString().isNotEmpty) {
         double badgeX = (startX == endX) ? startX : (startX + endX) / 2;

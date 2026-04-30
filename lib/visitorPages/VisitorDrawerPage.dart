@@ -55,7 +55,7 @@ class VisitorDrawerPage extends StatelessWidget {
             ),
           ),
 
-          /// ✅ SCROLLABLE MENU
+          ///  SCROLLABLE MENU
           Expanded(
             child: ListView(
               padding: EdgeInsets.zero,
@@ -120,7 +120,7 @@ class VisitorDrawerPage extends StatelessWidget {
             ),
           ),
 
-          /// ✅ FIXED LOGOUT + SAFE BOTTOM
+          ///  FIXED LOGOUT + SAFE BOTTOM
           SafeArea(
             top: false,
             child: Column(
