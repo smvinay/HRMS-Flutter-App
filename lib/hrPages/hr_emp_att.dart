@@ -30,7 +30,7 @@ class _HrAttendanceCalState extends State<HrAttendanceCal>
   Map<String, dynamic> attendanceMap = {};
   DateTime selectedDay = DateTime.now();
   DateTime focusedDay = DateTime.now();
-  bool showAttendanceCard = true;
+  bool showAttendanceCard = false;
   bool isLoading = false;
 
   List<dynamic> breakTimeline = [];
@@ -197,6 +197,10 @@ class _HrAttendanceCalState extends State<HrAttendanceCal>
 
     bool shouldUseCache =
         !forceRefresh && box.containsKey(cacheKey) && !isCurrentMonth;
+
+    if (forceRefresh) {
+      await box.clear();
+    }
 
     if (shouldUseCache) {
       final cachedData = box.get(cacheKey);
@@ -522,7 +526,7 @@ class _HrAttendanceCalState extends State<HrAttendanceCal>
                       hasData && attendanceMap[key]['leaves'] != null;
 
 
-                  /// 👉 CHECKOUT LOGIC
+                  ///  CHECKOUT LOGIC
                   bool latestStatus = hasData &&
                       attendanceMap[key]['lateststatus'] == "checkin";
 
@@ -1124,6 +1128,14 @@ class _HrAttendanceCalState extends State<HrAttendanceCal>
       );
     }
 
+    /// SELECTED DATE BORDER
+    if (isSelected) {
+      border = Border.all(
+        color: const Color(0xFF0557A2).withOpacity(0.5),
+        width: 1,
+      );
+    }
+
     return Stack(
       children: [
         /// MAIN DAY CIRCLE
@@ -1200,6 +1212,8 @@ class _HrAttendanceCalState extends State<HrAttendanceCal>
       ],
     );
   }
+
+
 
   Widget buildSelectedAttendance() {
     final scale = _calcScaleFromWidth(MediaQuery.of(context).size.width);

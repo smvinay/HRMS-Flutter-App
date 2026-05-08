@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../widgets/toast.dart';
+
 class EmpNotificationPage extends StatefulWidget {
   @override
   _EmpNotificationPageState createState() => _EmpNotificationPageState();
@@ -131,24 +133,17 @@ class _EmpNotificationPageState extends State<EmpNotificationPage> {
 
         if (result['status'] == true) {
 
-          ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(result['message']))
-          );
+          AppToast.show(result['message']);
+
 
           fetchPendingNotifications();
 
         } else {
-
-          ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text("Failed to update visitor"))
-          );
-
+          AppToast.show("Failed to update visitor", isError: true);
         }
 
       } else {
-
-        print("Server Error: ${response.statusCode}");
-
+        AppToast.show("Server Error: ${response.statusCode}", isError: true);
       }
 
     } catch (e) {

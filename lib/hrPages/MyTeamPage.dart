@@ -4,7 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../widgets/toast.dart';
 import 'EditEmployeePage.dart';
+import 'hr_drawer.dart';
+import 'hr_footer.dart';
 
 class MyTeamPage extends StatefulWidget {
   const MyTeamPage({super.key});
@@ -21,11 +24,30 @@ class _MyTeamPageState extends State<MyTeamPage> {
 
   final ImagePicker picker = ImagePicker();
   bool isUploading = false;
+  final FocusNode searchFocusNode = FocusNode();
+  bool isSearchExpanded = true;
 
   @override
   void initState() {
     super.initState();
     fetchEmployees();
+  }
+
+  @override
+  void dispose() {
+    searchController.dispose();
+    searchFocusNode.dispose();
+    super.dispose();
+  }
+
+  double _calcScaleFromWidth(double w) {
+    const base = 500.0;
+    final raw = (w / base);
+    return raw.clamp(0.7, 1.2);
+  }
+
+  double _s(double size, double scale) {
+    return size * scale;
   }
 
   Future<void> fetchEmployees() async {
@@ -79,6 +101,10 @@ class _MyTeamPageState extends State<MyTeamPage> {
 
   @override
   Widget build(BuildContext context) {
+    final scale = _calcScaleFromWidth(
+      MediaQuery.of(context).size.width,
+    );
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -91,104 +117,64 @@ class _MyTeamPageState extends State<MyTeamPage> {
         backgroundColor: const Color(0xFF0557a2),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
+      drawer: HrDrawer( currentRoute: 'Employee'),
+      bottomNavigationBar: const HrFooter(selectedIndex: null),
       body: Stack(
         children: [
-          Column(
-            children: [
-              Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                child: Row(
-                  children: [
-                    /// SEARCH BOX
-                    Expanded(
-                      child: SizedBox(
-                        height: 38,
-                        child: TextField(
-                          controller: searchController,
-                          onChanged: (value) {
-                            filterEmployees();
-                          },
-                          decoration: InputDecoration(
-                            hintText: "Search employee",
-                            prefixIcon: const Icon(Icons.search, size: 20),
-                            contentPadding: const EdgeInsets.symmetric(
-                                vertical: 8, horizontal: 10),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  BorderSide(color: Colors.grey.shade400),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide:
-                                  BorderSide(color: Colors.grey.shade400),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: const BorderSide(
-                                color: Color(0xFF0557a2),
-                                width: 1.5,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
 
-                    const SizedBox(width: 10),
+          RefreshIndicator(
+            onRefresh: fetchEmployees,
 
-                    /// FILTER DROPDOWN
-                    Container(
-                      height: 38,
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade400),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: DropdownButton<String>(
-                        value: filterStatus,
-                        underline: const SizedBox(),
-                        icon: const Icon(Icons.filter_list),
-                        items: const [
-                          DropdownMenuItem(
-                            value: "active",
-                            child: Text("Active"),
-                          ),
-                          DropdownMenuItem(
-                            value: "inactive",
-                            child: Text("Inactive"),
-                          ),
-                          DropdownMenuItem(
-                            value: "all",
-                            child: Text("All"),
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+
+              slivers: [
+
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.all(_s(6, scale)),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+
+                          expandableSearch(scale),
+
+                          SizedBox(width: _s(5, scale)),
+
+                          SizedBox(
+                            width: 280,
+                            child: slidingSegment(scale),
                           ),
                         ],
-                        onChanged: (value) {
-                          setState(() {
-                            filterStatus = value!;
-                          });
-                          filterEmployees();
-                        },
                       ),
                     ),
-                  ],
+                  ),
                 ),
-              ),
 
-              /// EMPLOYEE LIST
-              Expanded(
-                child: ListView.builder(
-                  itemCount: filteredEmployees.length,
-                  itemBuilder: (context, index) {
-                    final emp = filteredEmployees[index];
+                /// EMPLOYEE LIST
+                if (filteredEmployees.isEmpty)
+                  const SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(
+                      child: Text("No Employees Found"),
+                    ),
+                  )
+                else
+                  SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                        final emp = filteredEmployees[index];
 
-                    return _employeeCard(emp);
-                  },
-                ),
-              )
-            ],
+                        return _employeeCard(emp);
+                      },
+                      childCount: filteredEmployees.length,
+                    ),
+                  ),
+              ],
+            ),
           ),
+
           if (isUploading)
             Container(
               color: Colors.black.withOpacity(0.4),
@@ -231,10 +217,39 @@ class _MyTeamPageState extends State<MyTeamPage> {
 
         leading: Stack(
           children: [
+
             CircleAvatar(
               radius: 24,
-              backgroundImage: NetworkImage(profile),
+              backgroundColor: Colors.blue.shade100,
+
+              backgroundImage:
+              (emp["profile_thumbnail"] != null &&
+                  emp["profile_thumbnail"]
+                      .toString()
+                      .trim()
+                      .isNotEmpty)
+                  ? NetworkImage(profile)
+                  : null,
+
+              child:
+              (emp["profile_thumbnail"] == null ||
+                  emp["profile_thumbnail"]
+                      .toString()
+                      .trim()
+                      .isEmpty)
+                  ? Text(
+                name.isNotEmpty
+                    ? name[0].toUpperCase()
+                    : "?",
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                ),
+              )
+                  : null,
             ),
+
             Positioned(
               bottom: 0,
               right: 0,
@@ -309,6 +324,166 @@ class _MyTeamPageState extends State<MyTeamPage> {
     );
   }
 
+
+  Widget expandableSearch(double scale) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      width: isSearchExpanded ? _s(250, scale) : _s(50, scale),
+      height: _s(35, scale),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(_s(20, scale)),
+      ),
+      child: Row(
+        children: [
+
+          IconButton(
+            padding: EdgeInsets.zero,
+            icon: Icon(Icons.search, size: _s(18, scale)),
+            onPressed: () {
+              setState(() {
+                // isSearchExpanded = !isSearchExpanded;
+
+                if (!isSearchExpanded) {
+                  searchController.clear();
+                  searchFocusNode.unfocus();
+                  filterEmployees();
+                }
+              });
+            },
+          ),
+
+          if (isSearchExpanded)
+            Expanded(
+              child: TextField(
+                controller: searchController,
+                focusNode: searchFocusNode,
+                maxLength: 150,
+                buildCounter: (
+                    context, {
+                      required currentLength,
+                      required isFocused,
+                      maxLength,
+                    }) {
+                  return null;
+                },
+                style: TextStyle(fontSize: _s(12, scale)),
+                decoration: InputDecoration(
+                  hintText: "Search",
+                  hintStyle: TextStyle(fontSize: _s(11, scale)),
+                  border: InputBorder.none,
+                  isDense: true,
+
+                  suffixIcon: searchController.text.isNotEmpty
+                      ? IconButton(
+                    icon: Icon(
+                      Icons.close,
+                      size: _s(16, scale),
+                    ),
+                    onPressed: () {
+                      searchController.clear();
+                      searchFocusNode.unfocus();
+
+                      setState(() {});
+
+                      filterEmployees();
+                    },
+                  )
+                      : null,
+                ),
+                onChanged: (val) {
+                  setState(() {});
+                  filterEmployees();
+                },
+              ),
+            )
+        ],
+      ),
+    );
+  }
+
+  Widget slidingSegment(double scale) {
+    return Container(
+      height: _s(35, scale),
+      padding: EdgeInsets.all(_s(4, scale)),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(_s(20, scale)),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+
+          double width = constraints.maxWidth / 3;
+
+          return Stack(
+            children: [
+
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeInOut,
+                left: filterStatus == "active"
+                    ? 0
+                    : filterStatus == "inactive"
+                    ? width
+                    : width * 2,
+                top: 0,
+                bottom: 0,
+                child: Container(
+                  width: width,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(_s(16, scale)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.08),
+                        blurRadius: _s(4, scale),
+                      )
+                    ],
+                  ),
+                ),
+              ),
+
+              Row(
+                children: [
+                  _segItem("Active", "active", scale),
+                  _segItem("Inactive", "inactive", scale),
+                  _segItem("All", "all", scale),
+                ],
+              )
+            ],
+          );
+        },
+      ),
+    );
+  }
+  Widget _segItem(String title, String value, double scale) {
+    bool active = filterStatus == value;
+
+    return Expanded(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(_s(20, scale)),
+        onTap: () {
+          setState(() {
+            filterStatus = value;
+          });
+
+          filterEmployees();
+        },
+        child: Container(
+          alignment: Alignment.center,
+          height: double.infinity,
+          child: Text(
+            title,
+            style: TextStyle(
+              fontSize: _s(12, scale),
+              fontWeight: FontWeight.w600,
+              color: active ? Colors.black : Colors.grey,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
   void _showImagePickerOptions(Map emp) {
     showModalBottomSheet(
       context: context,
@@ -350,23 +525,22 @@ class _MyTeamPageState extends State<MyTeamPage> {
         path.endsWith('.jpeg') ||
         path.endsWith('.png'))) {
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Only JPG and PNG images are allowed"),
-        ),
-      );
+      AppToast.show("Only JPG and PNG images are allowed", isError: true);
       return;
     }
+
 
     File file = File(image.path);
 
     final fileSize = await file.length();
-    if (fileSize > 4 * 1024 * 1024) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Image must be less than 4MB"),
-        ),
-      );
+
+    /// Convert to MB properly
+    double fileSizeMB = fileSize / (1024 * 1024);
+
+    if (fileSizeMB > 4) {
+
+      AppToast.show( "Selected image size is ${fileSizeMB.toStringAsFixed(1)} MB. "
+          "Please upload an image smaller than 4 MB.", isError: true);
       return;
     }
 
@@ -380,9 +554,10 @@ class _MyTeamPageState extends State<MyTeamPage> {
         emp["reference_photos"] ?? "",
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Upload failed")),
-      );
+      AppToast.show("Upload failed", isError: true);
+      // ScaffoldMessenger.of(context).showSnackBar(
+      //   const SnackBar(content: Text("Upload failed")),
+      // );
     } finally {
       setState(() => isUploading = false);
     }

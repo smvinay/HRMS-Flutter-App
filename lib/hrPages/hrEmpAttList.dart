@@ -29,11 +29,18 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
 
   List<String> employeeCodes = [];
   int currentIndex = 0;
-
+  final TextEditingController searchController = TextEditingController();
+  final FocusNode searchFocusNode = FocusNode();
   @override
   void initState() {
     super.initState();
     fetchAttendanceList();
+  }
+  @override
+  void dispose() {
+    searchController.dispose();
+    searchFocusNode.dispose();
+    super.dispose();
   }
 
   Future<void> fetchAttendanceList() async {
@@ -59,11 +66,17 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
 
       setState(() {
         allList = data["data"] ?? [];
-        filteredList = List.from(allList);
-        employeeCodes = allList.map<String>((e) => e['emp_code'].toString()).toList();
-        filter = 'all';
+
+        employeeCodes = allList
+            .map<String>((e) => e['emp_code'].toString())
+            .toList();
+
         loading = false;
       });
+
+      /// IMPORTANT
+      /// Re-apply existing search + filter after date change
+      applyFilter();
 
     } catch (e) {
       setState(() => loading = false);
@@ -92,6 +105,14 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
 
         return status.isEmpty || status == "ABSENT";
       }).toList();
+
+    }
+    /// ✅ ADD THIS BLOCK
+    else if (filter == "leave") {
+      temp = temp.where((e) {
+        String isLeave = (e['is_leave'] ?? "").toString();
+        return isLeave != "0" && isLeave.isNotEmpty;
+      }).toList();
     }
 
     if (search.isNotEmpty) {
@@ -108,7 +129,7 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
   }
 
   double _calcScaleFromWidth(double w) {
-    const base = 475.0;
+    const base = 500.0;
     final raw = (w / base);
     return raw.clamp(0.7, 1.2);
   }
@@ -163,32 +184,56 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
       );
     }
 
-    // ❌ Absent or no data
+    //  Absent or no data
     return const Text("", style: TextStyle(fontSize: 11));
   }
 
   Widget attendanceRow(Map item, double scale) {
 
-    bool isIn = item['status_text'] == "IN";
-    bool isOut = item['status_text'] == "OUT";
-    bool isPresent = item['status_text'] == "Present";
-    bool isisAbsent = item['status_text'] == "Absent";
-    bool isHalfDay = item['status_text'] == "Half Day";
+    /// SAFE VALUES
+    String status = (item['status_text'] ?? "").toString().trim().toUpperCase();
+    String isLeave = (item['is_leave'] ?? "").toString();
 
+    String statusText = (item['status_text'] ?? "").toString();
+    String statusTime = (item['status_time'] ?? "").toString();
+    String thumb = (item['thumb'] ?? "").toString();
+    String firstName = (item['firstName'] ?? "").toString();
+    String designation = (item['designationName'] ?? "").toString();
+
+    /// COLOR LOGIC (MATCHING YOUR OLD WORKING CODE)
     Color color;
 
-    if (isIn) {
-      color = Colors.blue;
-    } else if (isOut) {
-      color = Colors.red;
-    } else if (isHalfDay) {
+    switch (status) {
+      case "IN":
+        color = Colors.blue;
+        break;
+      case "OUT":
+        color = Colors.red;
+        break;
+      case "PRESENT":
+        color = Colors.green;
+        break;
+      case "HALF DAY":
+      case "HALF_DAY":
+        color = Colors.orange;
+        break;
+      case "ABSENT":
+        color = Colors.red;
+        break;
+      default:
+        color = Colors.grey;
+    }
+
+    /// LEAVE OVERRIDE
+    if (isLeave.isNotEmpty && isLeave != "0") {
       color = Colors.orange;
-    } else if (isPresent) {
-      color = Colors.green;
-    } else if (isisAbsent) {
-      color = Colors.red;
-    }else {
-      color = Colors.grey;
+    }
+
+    /// BADGE TEXT
+    String badgeText = statusText;
+
+    if ((status == "IN" || status == "OUT") && statusTime.isNotEmpty) {
+      badgeText = "$statusText $statusTime";
     }
 
     return GestureDetector(
@@ -200,109 +245,115 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
           MaterialPageRoute(
             builder: (_) => EmployeeSwipeScreen(
               employeeList: employeeCodes,
-              initialIndex: index, //  correct
+              initialIndex: index,
             ),
           ),
         );
       },
-        child: Container(
-      margin: EdgeInsets.only(bottom: _s(8, scale)),
-      padding: EdgeInsets.symmetric(
-        horizontal: _s(10, scale),
-        vertical: _s(8, scale),
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(_s(10, scale)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: _s(6, scale),
-          )
-        ],
-      ),
-      child: Row(
-        children: [
+      child: Container(
+        margin: EdgeInsets.only(bottom: _s(8, scale)),
+        padding: EdgeInsets.symmetric(
+          horizontal: _s(10, scale),
+          vertical: _s(8, scale),
+        ),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(_s(10, scale)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: _s(6, scale),
+            )
+          ],
+        ),
+        child: Row(
+          children: [
 
-          CircleAvatar(
-            radius: _s(18, scale),
-            backgroundColor: Colors.grey.shade200,
-            backgroundImage: (item['thumb'] != null && item['thumb'] != "")
-                ? NetworkImage(item['thumb'])
-                : null,
-            child: (item['thumb'] == null || item['thumb'] == "")
-                ? Icon(Icons.person, size: _s(16, scale), color: Colors.grey)
-                : null,
-          ),
+            /// PROFILE
+            CircleAvatar(
+              radius: _s(18, scale),
+              backgroundColor: Colors.grey.shade200,
+              backgroundImage:
+              thumb.isNotEmpty ? NetworkImage(thumb) : null,
+              child: thumb.isEmpty
+                  ? Icon(Icons.person,
+                  size: _s(16, scale), color: Colors.grey)
+                  : null,
+            ),
 
-          SizedBox(width: _s(8, scale)),
+            SizedBox(width: _s(8, scale)),
 
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-
-                Text(
-                  item['firstName'],
-                  style: TextStyle(
-                    fontSize: _s(13, scale),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-
-                if ((item['designationName'] ?? "").isNotEmpty)
+            /// NAME + DESIGNATION
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    item['designationName'],
+                    firstName.isNotEmpty ? firstName : "--",
                     style: TextStyle(
-                      fontSize: _s(11, scale),
-                      color: Colors.grey,
+                      fontSize: _s(13, scale),
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-              ],
+
+                  if (designation.isNotEmpty)
+                    Text(
+                      designation,
+                      style: TextStyle(
+                        fontSize: _s(11, scale),
+                        color: Colors.grey,
+                      ),
+                    ),
+                ],
+              ),
             ),
-          ),
 
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
+            /// RIGHT SIDE
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
 
-              getDisplayTime(item),
+                /// SAFE TIME DISPLAY
+                getDisplayTime(item),
 
-              SizedBox(height: _s(2, scale)),
+                SizedBox(height: _s(2, scale)),
 
-              Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: _s(8, scale),
-                  vertical: _s(2, scale),
-                ),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(.15),
-                  borderRadius: BorderRadius.circular(_s(20, scale)),
-                ),
-                child: Text(
-                  item['status_text'],
-                  style: TextStyle(
-                    fontSize: _s(10, scale),
-                    color: color,
+                /// STATUS BADGE
+                Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: _s(8, scale),
+                    vertical: _s(2, scale),
+                  ),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(.15),
+                    borderRadius: BorderRadius.circular(_s(20, scale)),
+                  ),
+                  child: Text(
+                    badgeText.isNotEmpty ? badgeText : "--",
+                    style: TextStyle(
+                      fontSize: _s(10, scale),
+                      color: color,
+                    ),
                   ),
                 ),
-              ),
 
-              SizedBox(height: _s(4, scale)),
-
-            ],
-          ),
-        ],
-      ),
+                SizedBox(height: _s(4, scale)),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
+
+
   Widget filterChips() {
     return Row(
       children: [
         _chip("All", "all"),
         _chip("Present", "present"),
         _chip("Absent", "absent"),
+        _chip("Leave", "leave"),
       ],
     );
   }
@@ -345,24 +396,25 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
   }
 
   Widget topControls(double scale) {
-    return Row(
-      children: [
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
 
-        /// 🔍 SEARCH (fixed size)
-        expandableSearch(scale),
+          expandableSearch(scale),
 
-        SizedBox(width: _s(5, scale)),
+          SizedBox(width: _s(5, scale)),
 
-        /// 📅 DATE
-        _dateChip(scale),
+          _dateChip(scale),
 
-        SizedBox(width: _s(5, scale)),
+          SizedBox(width: _s(5, scale)),
 
-        ///  SEGMENT (auto fit remaining space)
-        Expanded(
-          child: slidingSegment(scale),
-        ),
-      ],
+          SizedBox(
+            width: 350,
+            child: slidingSegment(scale),
+          ),
+        ],
+      ),
     );
   }
 
@@ -466,7 +518,7 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
         selectedDate = picked;
         selectedDateStr = DateFormat("dd MMM").format(picked);
       });
-
+      searchFocusNode.unfocus();
       fetchAttendanceList(); // reload data
     }
   }
@@ -484,12 +536,21 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
       child: Row(
         children: [
 
+          /// SEARCH ICON
           IconButton(
             padding: EdgeInsets.zero,
             icon: Icon(Icons.search, size: _s(18, scale)),
             onPressed: () {
               setState(() {
                 isSearchExpanded = !isSearchExpanded;
+                if (!isSearchExpanded) {
+                  search = "";
+                  searchController.clear();
+                  /// UNFOCUS
+                  searchFocusNode.unfocus();
+
+                  applyFilter();
+                }
               });
             },
           ),
@@ -497,15 +558,52 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
           if (isSearchExpanded)
             Expanded(
               child: TextField(
+                controller: searchController,
+                focusNode: searchFocusNode,
+                maxLength: 150,
+                buildCounter: (
+                    context, {
+                      required currentLength,
+                      required isFocused,
+                      maxLength,
+                    }) {
+                  return null;
+                },
                 style: TextStyle(fontSize: _s(12, scale)),
                 decoration: InputDecoration(
                   hintText: "Search",
                   hintStyle: TextStyle(fontSize: _s(11, scale)),
                   border: InputBorder.none,
                   isDense: true,
+
+                  suffixIcon: search.isNotEmpty
+                      ? IconButton(
+                    icon: Icon(
+                      Icons.close,
+                      size: _s(16, scale),
+                    ),
+                    onPressed: () {
+
+                      /// CLEAR TEXT
+                      searchController.clear();
+
+                      /// REMOVE FOCUS + CLOSE KEYBOARD
+                      searchFocusNode.unfocus();
+
+                      setState(() {
+                        search = "";
+                      });
+
+                      applyFilter();
+                    },
+                  )
+                      : null,
                 ),
                 onChanged: (val) {
-                  search = val;
+                  setState(() {
+                    search = val;
+                  });
+
                   applyFilter();
                 },
               ),
@@ -526,8 +624,7 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
       child: LayoutBuilder(
         builder: (context, constraints) {
 
-          double width = constraints.maxWidth / 3;
-
+          double width = constraints.maxWidth / 4;
           return Stack(
             children: [
 
@@ -539,7 +636,9 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
                     ? 0
                     : filter == "present"
                     ? width
-                    : width * 2,
+                    : filter == "absent"
+                    ? width * 2
+                    : width * 3,
                 top: 0,
                 bottom: 0,
                 child: Container(
@@ -562,6 +661,7 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
                   _segItem("All", "all", scale),
                   _segItem("Present", "present", scale),
                   _segItem("Absent", "absent", scale),
+                  _segItem("Leave", "leave", scale),
                 ],
               )
             ],
@@ -576,14 +676,17 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
     bool active = filter == value;
 
     return Expanded(
-      child: GestureDetector(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(_s(20, scale)),
         onTap: () {
           setState(() {
             filter = value;
           });
           applyFilter();
         },
-        child: Center(
+        child: Container(
+          alignment: Alignment.center,
+          height: double.infinity,
           child: Text(
             title,
             style: TextStyle(
@@ -608,8 +711,18 @@ class _HrEmployeeAttState extends State<HrEmployeeAtt> {
     }
 
     return Scaffold(
-      appBar: const HrHeader(),
-      drawer: HrDrawer(),
+      appBar: AppBar(
+        title: Text(
+          'Attendance',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: _s(20, scale),
+          ),
+        ),
+        backgroundColor: const Color(0xFF0557a2),
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      drawer: HrDrawer(currentRoute: 'Attendance',),
       bottomNavigationBar: const HrFooter(selectedIndex: 0),
 
         body: RefreshIndicator(

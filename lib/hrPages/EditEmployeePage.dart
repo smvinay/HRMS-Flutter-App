@@ -8,6 +8,8 @@ import 'dart:io';
 
 import 'package:shimmer/shimmer.dart';
 
+import '../widgets/toast.dart';
+
 class EditEmployeePage extends StatefulWidget {
   final String employeeCode;
 
@@ -74,24 +76,22 @@ class _EditEmployeePageState extends State<EditEmployeePage> {
         path.endsWith('.jpeg') ||
         path.endsWith('.png'))) {
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Only JPG and PNG images are allowed"),
-        ),
-      );
+      AppToast.show("Only JPG and PNG images are allowed", isError: true);
+
       return;
     }
 
     File file = File(image.path);
 
-    ///  FILE SIZE VALIDATION (1MB)
     final fileSize = await file.length();
-    if (fileSize > 4 * 1024 * 1024) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Image must be less than 4MB"),
-        ),
-      );
+
+    /// Convert to MB properly
+    double fileSizeMB = fileSize / (1024 * 1024);
+
+    if (fileSizeMB > 4) {
+
+      AppToast.show( "Selected image size is ${fileSizeMB.toStringAsFixed(1)} MB. "
+          "Please upload an image smaller than 4 MB.", isError: true);
       return;
     }
 
@@ -109,9 +109,8 @@ class _EditEmployeePageState extends State<EditEmployeePage> {
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Upload failed")),
-      );
+      AppToast.show("Upload failed", isError: true);
+
     } finally {
       setState(() {
         isUploadingRef = false;
@@ -165,18 +164,15 @@ class _EditEmployeePageState extends State<EditEmployeePage> {
 
     if (jsonData['status'] == true) {
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Reference image uploaded")),
-      );
+      AppToast.show("Reference image uploaded");
 
-      /// refresh images from server
       fetchEmployeeDetails();
 
     } else {
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(jsonData['message'] ?? "Upload failed")),
-      );
+      AppToast.show(jsonData['message'] ?? "Upload failed", isError: true);
+      // ScaffoldMessenger.of(context).showSnackBar(
+      //   SnackBar(content: Text(jsonData['message'] ?? "Upload failed")),
+      // );
 
     }
   }

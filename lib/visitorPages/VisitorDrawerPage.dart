@@ -225,7 +225,11 @@ class VisitorDrawerPage extends StatelessWidget {
 
                 Navigator.pop(context);
 
-                Navigator.pushReplacementNamed(context, '/login');
+                Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/login',
+                      (route) => false,
+                );
 
               },
             ),

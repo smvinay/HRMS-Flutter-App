@@ -1,9 +1,10 @@
 import 'dart:convert';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../employee_leave_details_page.dart';
+import 'employee_leave_details_page.dart';
 import '../global_state.dart';
 import 'hr_emp_att.dart';
 import 'hr_header.dart';
@@ -40,6 +41,7 @@ class _HrDashboardState extends State<HrDashboard> {
   List pendingLeaves = [];
   bool leaveLoading = true;
   int pendingCount = 0;
+  Set<String> expandedIndex = <String>{};
 
   @override
   void initState() {
@@ -203,7 +205,7 @@ class _HrDashboardState extends State<HrDashboard> {
 
     return Scaffold(
       appBar: const HrHeader(),
-      drawer: HrDrawer(pendingCount: pendingCount),
+      drawer: HrDrawer(pendingCount: pendingCount , currentRoute: 'Home'),
       bottomNavigationBar: const HrFooter(selectedIndex: 1),
 
       body: RefreshIndicator(
@@ -482,6 +484,32 @@ class _HrDashboardState extends State<HrDashboard> {
   }
 
 
+  String getAttendanceTitle() {
+    switch (selectedFilter) {
+      case "present":
+        return "Present Employees";
+      case "absent":
+        return "Absent Employees";
+      case "leave":
+        return "On Leave";
+      default:
+        return "Attendance List";
+    }
+  }
+
+  String getEmptyMessage() {
+    switch (selectedFilter) {
+      case "present":
+        return "No present employees";
+      case "absent":
+        return "No absent employees";
+      case "leave":
+        return "No employees on leave";
+      default:
+        return "No attendance data";
+    }
+  }
+
   Widget _attendanceListCard(double scale) {
 
     final filteredList = getFilteredList();
@@ -522,13 +550,13 @@ class _HrDashboardState extends State<HrDashboard> {
                 children: [
 
                   Row(
-                    children: const [
-                      Icon(Icons.access_time, color: Colors.blue),
-                      SizedBox(width: 6),
+                    children: [
+                      const Icon(Icons.access_time, color: Colors.blue),
+                      const SizedBox(width: 6),
                       Text(
-                        "Attendance List",
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
+                        getAttendanceTitle(),
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      )
                     ],
                   ),
 
@@ -565,7 +593,7 @@ class _HrDashboardState extends State<HrDashboard> {
                       const Center(child: CircularProgressIndicator())
 
                     else if (filteredList.isEmpty)
-                      const Text("No attendance data")
+                      Text(getEmptyMessage())
 
                     else
                       ...filteredList
@@ -770,7 +798,14 @@ class _HrDashboardState extends State<HrDashboard> {
     }
 
     return Column(
-      children: pendingLeaves.take(5).map((leave) {
+      children: pendingLeaves
+          .take(5)
+          .toList()
+          .asMap()
+          .entries
+          .map((entry) {
+        int index = entry.key;
+        var leave = entry.value;
         int status =
             int.tryParse(leave['status']?.toString() ?? '0') ?? 0;
 
@@ -889,30 +924,60 @@ class _HrDashboardState extends State<HrDashboard> {
                           ],
                         ),
 
-                        const SizedBox(height: 4),
+                        const SizedBox(width: 8),
 
-                        /// TYPE + DATE
                         Row(
-                          mainAxisAlignment:
-                          MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              leave['type'] ?? "",
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
+
+                            /// LEFT → LEAVE TYPE
+                            Expanded(
+                              flex: 3,
+                              child: Text(
+                                leave['type'] ?? "",
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey.shade600,
+                                ),
                               ),
                             ),
 
-                            Text(
-                              "${formatDate(fromDate)} - ${formatDate(toDate)}",
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.grey.shade600,
+                            const SizedBox(width: 8),
+
+                            /// RIGHT → DATE RANGE
+                            Expanded(
+                              flex: 10,
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+
+                                  const Icon(
+                                    Icons.calendar_today,
+                                    size: 12,
+                                    color: Colors.grey,
+                                  ),
+
+                                  const SizedBox(width: 4),
+
+                                  Flexible(
+                                    child: Text(
+                                      "${formatDate(fromDate)} → ${formatDate(toDate)} "
+                                          "(${leave['days']} ${double.tryParse(leave['days'].toString()) == 1 ? 'day' : 'days'})",
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.end,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
-                        ),
+                        )
+
 
 
                       ],
@@ -921,6 +986,7 @@ class _HrDashboardState extends State<HrDashboard> {
                 ],
               ),
 
+              const SizedBox(height: 4),
               /// APPLIED DATE + DAYS
               Row(
                 mainAxisAlignment:
@@ -935,46 +1001,105 @@ class _HrDashboardState extends State<HrDashboard> {
                       Text(
                         formatDate(applieDate),
                         style: TextStyle(
-                          fontSize: 10,
+                          fontSize: 12,
                           color:
-                          Colors.grey.shade500,
+                          Colors.grey.shade600,
                         ),
                       ),
                     ],
                   ),
-
-                  Text(
-                    "${leave['days']} days",
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-              ///  REASON (FIXED POSITION)
-              if ((leave['reason'] ?? "").toString().isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(Icons.notes,
-                        size: 14, color: Colors.grey),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        leave['reason'],
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey.shade700,
-                        ),
+                  Expanded(
+                    child: Text(
+                      leave['reporting_to_name'] ?? "",
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.end,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
                       ),
                     ),
-                  ],
+                  ),
+
+                  // Text(
+                  //   "${leave['days']} days",
+                  //   style: const TextStyle(
+                  //     fontSize: 11,
+                  //     fontWeight: FontWeight.w600,
+                  //   ),
+                  // ),
+                ],
+              ),
+
+              /// REASON + EXPAND
+              if ((leave['reason'] ?? "").toString().isNotEmpty) ...[
+                const SizedBox(height: 8),
+
+                LayoutBuilder(
+                  builder: (context, constraints) {
+
+                    bool overflow = isTextOverflow(
+                      leave['reason'],
+                      constraints.maxWidth,
+                      TextStyle(fontSize: 11, height: 1.4),
+                    );
+
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+
+                        const Icon(Icons.notes, size: 14, color: Colors.grey),
+                        const SizedBox(width: 6),
+
+                        Expanded(
+                          child: Text(
+                            leave['reason'],
+                            maxLines: overflow
+                                ? (expandedIndex.contains("reason_$index") ? null : 2)
+                                : null,
+                            overflow: overflow
+                                ? (expandedIndex.contains("reason_$index")
+                                ? TextOverflow.visible
+                                : TextOverflow.ellipsis)
+                                : TextOverflow.visible,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey.shade700,
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+
+                        /// SHOW ICON ONLY IF OVERFLOW
+                        if (overflow)
+                          GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                if (expandedIndex.contains("reason_$index")) {
+                                  expandedIndex.remove("reason_$index");
+                                } else {
+                                  expandedIndex.add("reason_$index");
+                                }
+                              });
+                            },
+                            child: Icon(
+                              expandedIndex.contains("reason_$index")
+                                  ? Icons.expand_less
+                                  : Icons.expand_more,
+                              size: 18,
+                              color: Colors.grey,
+                            ),
+                          ),
+
+                        // const SizedBox(width: 6),
+                        // _statusChip(status),
+
+                      ],
+                    );
+                  },
                 ),
               ],
+
             ],
           ),
           ),
@@ -982,6 +1107,21 @@ class _HrDashboardState extends State<HrDashboard> {
       }).toList(),
     );
   }
+
+  bool isTextOverflow(String text, double maxWidth, TextStyle style) {
+    final textSpan = TextSpan(text: text, style: style);
+
+    final tp = TextPainter(
+      text: textSpan,
+      maxLines: 2,
+      textDirection: ui.TextDirection.ltr,
+    );
+
+    tp.layout(maxWidth: maxWidth);
+
+    return tp.didExceedMaxLines;
+  }
+
   String formatDate(DateTime date) {
     return DateFormat('dd-MM-yyyy').format(date);
   }

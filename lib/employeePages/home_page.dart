@@ -72,7 +72,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   late TransformationController _transformationController;
-  bool _isZoomed = false;
   String loadedMonthKey = "";
   String? errorText;
 
@@ -304,13 +303,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     String cid = prefs.getString('cid') ?? "0";
 
     String cacheKey = _getCacheKey(year, month);
-    String holidayKey = _getHolidayKey(year, month);
+    String holidayKey =  _getHolidayKey(year, month);
 
     final now = DateTime.now();
     final isCurrentMonth = (year == now.year && month == now.month);
 
     bool shouldUseCache =
         !forceRefresh && box.containsKey(cacheKey) && !isCurrentMonth;
+
+    if (forceRefresh) {
+      await box.clear();
+    }
 
     if (shouldUseCache) {
       final cachedData = box.get(cacheKey);
@@ -754,7 +757,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     return;
                   }
 
-                  /// 👉 CHECKOUT LOGIC
+                  ///  CHECKOUT LOGIC
                   bool latestStatus = hasData &&
                       attendanceMap[key]['lateststatus'] == "checkin";
 
@@ -762,9 +765,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       (attendanceMap[key]['checkin'] != null &&
                           attendanceMap[key]['checkin'] != "");
 
-                  bool hasCheckOut = hasData &&
-                      (attendanceMap[key]['checkout'] != null &&
-                          attendanceMap[key]['checkout'] != "");
 
                   bool isPastDay = selectedDate.isBefore(todayDate);
 
@@ -857,7 +857,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
     String checkinRaw = attendanceMap[date]['checkin'] ?? "";
     String checkinFormatted = _formatTime(checkinRaw);
-    String formateddate = _formatTime(date);
     bool isConfirmed = false;
 
     showDialog(
@@ -1523,6 +1522,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       border = Border.all(
         color: Colors.blue,
         width: 2,
+      );
+    }
+    if (isSelected) {
+      border = Border.all(
+        color: const Color(0xFF0557A2).withOpacity(0.5),
+        width: 1,
       );
     }
 
@@ -2520,7 +2525,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           color: Colors.transparent,
           child: InkWell(
             borderRadius: BorderRadius.circular(_s(8, scale)),
-            onTap: (fullImageUrl != null && fullImageUrl.isNotEmpty)
+            onTap: (fullImageUrl.isNotEmpty)
                 ? () => showImage(fullImageUrl)
                 : null,
             child: Container(

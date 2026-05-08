@@ -1,8 +1,9 @@
 import 'dart:async';
-
+import 'dart:io';
 import 'package:dropdown_search/dropdown_search.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -23,7 +24,6 @@ class _VisitorFormPageState extends State<VisitorFormPage>
   List<Visitor> _visitors = [];
   List<Employee> _employees = [];
   bool _isLoading = true;
-  bool _isSubmitting = false;
   int _selectedIndex = 0;
   Map<int, Employee?> _selectedEmployeeByIndex = {};
   Timer? _refreshTimer;
@@ -39,6 +39,8 @@ class _VisitorFormPageState extends State<VisitorFormPage>
   late Map<int, TextEditingController> fromControllers = {};
 
   Map<int, bool> isSaving = {};
+  final ImagePicker _picker = ImagePicker();
+  Map<int, bool> isUploadingImage = {};
 
   @override
   void initState() {
@@ -168,7 +170,7 @@ class _VisitorFormPageState extends State<VisitorFormPage>
       }
     });
   }
-  void _loadVisitorData() async {
+   _loadVisitorData() async {
     setState(() => _isLoading = true);
     final prefs = await SharedPreferences.getInstance();
     String? userId = prefs.getString('cid');
@@ -374,8 +376,8 @@ class _VisitorFormPageState extends State<VisitorFormPage>
                           ClipRRect(
                             borderRadius: BorderRadius.circular(8),
                             child: Image.network(
-                              v.detected_face != null && v.detected_face!.isNotEmpty
-                                  ? 'https://hrms.attendify.ai/guest_faces/${v.detected_face}'
+                              v.guestPhoto != null && v.guestPhoto!.isNotEmpty
+                                  ? 'https://hrms.attendify.ai/guest_faces/${v.guestPhoto}'
                                   : 'https://via.placeholder.com/80',
                               width: isTablet ? 80 : 65,
                               height: isTablet ? 80 : 65,
@@ -394,7 +396,7 @@ class _VisitorFormPageState extends State<VisitorFormPage>
                                 Text(
                                   v.firstName?.isNotEmpty == true
                                       ? v.firstName!
-                                      : "Visitor ${index + 1}",
+                                      : "Visitor ${v.guestId}",
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w600,
                                     fontSize: 15,
@@ -419,8 +421,8 @@ class _VisitorFormPageState extends State<VisitorFormPage>
 
                       /// ARCHIVE BUTTON
                       Positioned(
-                        right: 0,
-                        top: 0,
+                        right: -2,
+                        top: -2,
                         child: InkWell(
                           onTap: () {
                             _archiveVisitor(v.guestId, index);
@@ -479,7 +481,7 @@ class _VisitorFormPageState extends State<VisitorFormPage>
 
 
   Widget _buildTopVisitorScroller(bool isTablet , double scale) {
-    final cardWidth = isTablet ? 110.0 : 110.0;
+    final cardWidth = isTablet ? 125.0 : 125.0;
 
     return SizedBox(
       height: isTablet ? _s(170, scale) :  _s(250, scale),
@@ -499,7 +501,7 @@ class _VisitorFormPageState extends State<VisitorFormPage>
           final displayName =
           (v.firstName != null && v.firstName!.trim().isNotEmpty)
               ? v.firstName!
-              : "Visitor ${index + 1}";
+              : "Visitor ${v.guestId}";
 
           //  Extract only time (HH:mm:ss)
           String displayTime = "- - -";
@@ -510,6 +512,7 @@ class _VisitorFormPageState extends State<VisitorFormPage>
           return GestureDetector(
             onTap: () {
               setState(() {
+                _errors.clear();
                 _selectedIndex = index;
               });
               _centerCard(index, cardWidth);
@@ -548,8 +551,8 @@ class _VisitorFormPageState extends State<VisitorFormPage>
                       ClipRRect(
                         borderRadius: BorderRadius.circular(8),
                         child: Image.network(
-                          v.detected_face != null && v.detected_face!.isNotEmpty
-                              ? 'https://hrms.attendify.ai/guest_faces/${v.detected_face}'
+                          v.guestPhoto != null && v.guestPhoto!.isNotEmpty
+                              ? 'https://hrms.attendify.ai/guest_faces/${v.guestPhoto}'
                               : 'https://via.placeholder.com/80',
                           width: 95,
                           height: 95,
@@ -620,7 +623,7 @@ class _VisitorFormPageState extends State<VisitorFormPage>
     final headerTitle =
     (visitor.firstName != null && visitor.firstName!.trim().isNotEmpty)
         ? visitor.firstName!
-        : "Visitor ${index + 1}";
+        :  "Visitor ${visitor.guestId}";
 
     return Card(
       elevation: _s(0, scale),
@@ -648,23 +651,27 @@ class _VisitorFormPageState extends State<VisitorFormPage>
 
                 Expanded(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start, // 👈 add this
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
 
-                     Text(
-                          headerTitle,
-                          style: TextStyle(
-                            fontSize: isTablet ? _s(22, scale) : _s(18, scale),
-                            fontWeight: FontWeight.bold,
-                          ),
+                      Text(
+                        headerTitle,
+                        style: TextStyle(
+                          fontSize: isTablet
+                              ? _s(22, scale)
+                              : _s(18, scale),
+                          fontWeight: FontWeight.bold,
                         ),
-
+                      ),
 
                       _buildTextField(
                         context,
                         'Name',
                         nameControllers[index]!,
                         "name",
+                        isOptional: false,
+                        minLength: 3,
+                        maxLength: 100,
                       ),
 
                       SizedBox(height: _s(5, scale)),
@@ -675,6 +682,9 @@ class _VisitorFormPageState extends State<VisitorFormPage>
                         phoneControllers[index]!,
                         "phone",
                         keyboard: TextInputType.number,
+                        isOptional: false,
+                        minLength: 10,
+                        maxLength: 10,
                       ),
                     ],
                   ),
@@ -682,25 +692,72 @@ class _VisitorFormPageState extends State<VisitorFormPage>
 
                 SizedBox(width: _s(8, scale)),
 
-                /// VISITOR IMAGE
-                Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(_s(10, scale)),
-                    border: Border.all(color: Colors.grey.shade300),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(_s(10, scale)),
-                    child: Image.network(
-                      visitor.detected_face != null &&
-                          visitor.detected_face!.isNotEmpty
-                          ? 'https://hrms.attendify.ai/guest_faces/${visitor.detected_face}'
-                          : 'https://via.placeholder.com/100',
-                      width: isTablet ? _s(130, scale) : _s(130, scale),
-                      height: isTablet ? _s(135, scale) : _s(145, scale),
-                      fit: BoxFit.cover,
+                Stack(
+                  children: [
+
+                    /// IMAGE
+                    Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(_s(10, scale)),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(_s(10, scale)),
+                        child: Image.network(
+                          visitor.guestPhoto != null &&
+                              visitor.guestPhoto!.isNotEmpty
+                              ? 'https://hrms.attendify.ai/guest_faces/${visitor.guestPhoto}'
+                              : 'https://via.placeholder.com/100',
+                          width: isTablet ? _s(130, scale) : _s(130, scale),
+                          height: isTablet ? _s(135, scale) : _s(145, scale),
+                          fit: BoxFit.cover,
+                        ),
+                      ),
                     ),
-                  ),
-                ),
+
+                    /// 📸 CAMERA BUTTON (BOTTOM RIGHT)
+                    Positioned(
+                      bottom: -1,
+                      right: 0,
+                      child: InkWell(
+                        onTap: () async {
+                          if (isUploadingImage[index] == true) return;
+
+                          setState(() => isUploadingImage[index] = true);
+
+                          File? image = await captureImage();
+
+                          if (image != null) {
+                            await uploadGuestPhoto(image, visitor, index);
+                          }
+
+                          setState(() => isUploadingImage[index] = false);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                          ),
+                          child: isUploadingImage[index] == true
+                              ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.black,
+                            ),
+                          )
+                              : const Icon(
+                            Icons.camera_alt,
+                            size: 20,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                )
               ],
             ),
 
@@ -712,6 +769,7 @@ class _VisitorFormPageState extends State<VisitorFormPage>
               emailControllers[index]!,
               "email",
               keyboard: TextInputType.emailAddress,
+              maxLength: 250,
               isOptional: true,
             ),
 
@@ -722,6 +780,8 @@ class _VisitorFormPageState extends State<VisitorFormPage>
               'Organisation',
               fromControllers[index]!,
               "from",
+              maxLength: 300,
+              isOptional: true,
             ),
 
             SizedBox(height: _s(5, scale)),
@@ -731,6 +791,8 @@ class _VisitorFormPageState extends State<VisitorFormPage>
               'Purpose',
               purposeControllers[index]!,
               "purpose",
+              maxLength: 300,
+              isOptional: true,
             ),
 
             SizedBox(height: _s(5, scale)),
@@ -743,7 +805,7 @@ class _VisitorFormPageState extends State<VisitorFormPage>
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: isSaving[index] == true
+                onPressed: (isSaving[index] == true || isUploadingImage[index] == true)
                     ? null
                     : () async {
                   setState(() => isSaving[index] = true);
@@ -786,6 +848,71 @@ class _VisitorFormPageState extends State<VisitorFormPage>
     );
   }
 
+  Future<File?> captureImage() async {
+    final XFile? photo = await _picker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 80, // compress
+    );
+
+    if (photo == null) return null;
+
+    return File(photo.path);
+  }
+
+  Future<void> uploadGuestPhoto(File imageFile, Visitor visitor, int index) async {
+    final prefs = await SharedPreferences.getInstance();
+    final apiKey = prefs.getString('apiKey');
+    final companyDb = prefs.getString('companyDb');
+
+    if (apiKey == null || companyDb == null) {
+      _showflashbar("Auth error", Colors.red);
+      return;
+    }
+
+    try {
+      var uri = Uri.parse(
+        "https://hrms.attendify.ai/index.php/MobileApi/update_guest_photo",
+      );
+
+      var request = http.MultipartRequest("POST", uri);
+
+      request.files.add(
+        await http.MultipartFile.fromPath('image', imageFile.path),
+      );
+
+      request.fields['gid'] = visitor.guestId;
+
+      request.headers['apiKey'] = apiKey;
+      request.headers['companyDb'] = companyDb;
+
+      var response = await request.send();
+      var resStr = await response.stream.bytesToString();
+      var data = json.decode(resStr);
+
+      print("camera pai res data $data");
+
+      if (response.statusCode == 200 && data['status'] == true) {
+
+        _showflashbar("Photo updated", Colors.green);
+        _safeReload();
+
+      } else {
+        _showflashbar(data['message'] ?? "Upload failed", Colors.red);
+      }
+
+    } catch (e) {
+      print("UPLOAD ERROR: $e");
+      _showflashbar("Upload failed", Colors.red);
+    }
+  }
+
+  Future<void> _safeReload() async {
+    try {
+      await _loadVisitorData();
+    } catch (e) {
+      print("Reload error: $e");
+    }
+  }
 
   Widget _buildTextField(
       BuildContext context,
@@ -794,8 +921,12 @@ class _VisitorFormPageState extends State<VisitorFormPage>
       String fieldKey, {
         TextInputType keyboard = TextInputType.text,
         bool isOptional = false,
+        int? minLength,
+        int? maxLength,
       }) {
-    final scale = _calcScaleFromWidth(MediaQuery.of(context).size.width);
+    final scale = _calcScaleFromWidth(
+      MediaQuery.of(context).size.width,
+    );
 
     return Container(
       margin: EdgeInsets.only(bottom: _s(4, scale)),
@@ -815,24 +946,51 @@ class _VisitorFormPageState extends State<VisitorFormPage>
         keyboardType: keyboard,
         autovalidateMode: AutovalidateMode.onUserInteraction,
 
-        inputFormatters: fieldKey == "phone"
-            ? [
-          FilteringTextInputFormatter.digitsOnly,
-          LengthLimitingTextInputFormatter(10),
-        ]
-            : null,
+        // inputFormatters: fieldKey == "phone"
+        //     ? [
+        //   FilteringTextInputFormatter.digitsOnly,
+        //   LengthLimitingTextInputFormatter(10),
+        // ]
+        //     : null,
+        inputFormatters: [
+
+          if (fieldKey == "phone")
+            FilteringTextInputFormatter.digitsOnly,
+
+          if (maxLength != null)
+            LengthLimitingTextInputFormatter(maxLength),
+        ],
 
         onChanged: (value) {
-          if (fieldKey == "phone") {
-            if (value.length != 10) {
-              setState(() {
-                _errors[fieldKey] = "Phone number must be 10 digits";
-              });
-            } else {
-              setState(() {
-                _errors.remove(fieldKey);
-              });
-            }
+
+          String trimmed = value.trim();
+
+          /// MIN LENGTH
+          if (minLength != null && trimmed.length < minLength) {
+
+            setState(() {
+              _errors[fieldKey] =
+              "$label must be at least $minLength characters";
+            });
+
+          }
+
+          /// MAX LENGTH
+          else if (maxLength != null &&
+              trimmed.length > maxLength) {
+
+            setState(() {
+              _errors[fieldKey] =
+              "$label must be less than $maxLength characters";
+            });
+
+          }
+
+          else {
+
+            setState(() {
+              _errors.remove(fieldKey);
+            });
           }
         },
 
@@ -840,15 +998,52 @@ class _VisitorFormPageState extends State<VisitorFormPage>
           controller.text = controller.text.trim();
         },
 
-        style: TextStyle(fontSize: _s(15, scale)),
+        style: TextStyle(
+          fontSize: _s(15, scale),
+        ),
 
         decoration: InputDecoration(
-          labelText: label,
 
-          labelStyle: TextStyle(
-            fontSize: _s(15, scale),
-            fontWeight: FontWeight.w500,
+          /// LABEL WITH RED *
+          label: RichText(
+            text: TextSpan(
+              children: [
+
+                TextSpan(
+                  text: label,
+                  style: TextStyle(
+                    fontSize: _s(15, scale),
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+
+                if (!isOptional)
+                  TextSpan(
+                    text: " *",
+                    style: TextStyle(
+                      color: Colors.red,
+                      fontSize: _s(15, scale),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+              ],
+            ),
           ),
+          counter: maxLength != null
+              ? Transform.translate(
+            offset: const Offset(0, -5),
+            child: Text(
+              "${controller.text.length}/$maxLength",
+              style: TextStyle(
+                color: Colors.grey,
+                fontSize: _s(9, scale),
+              ),
+            ),
+          )
+              : null,
+          floatingLabelBehavior:
+          FloatingLabelBehavior.auto,
 
           floatingLabelStyle: TextStyle(
             color: _errors[fieldKey] != null
@@ -872,7 +1067,6 @@ class _VisitorFormPageState extends State<VisitorFormPage>
       ),
     );
   }
-
   Future<void> _archiveVisitor(String guestId, int index) async {
 
     /// CONFIRMATION DIALOG
@@ -1235,7 +1429,6 @@ class _VisitorFormPageState extends State<VisitorFormPage>
     }
 
     setState(() {
-      _isSubmitting = true;
     });
 
     try {
@@ -1362,7 +1555,6 @@ class _VisitorFormPageState extends State<VisitorFormPage>
       _showflashbar("Something went wrong", Colors.red.shade300);
     } finally {
       setState(() {
-        _isSubmitting = false;
       });
     }
   }
@@ -1387,7 +1579,8 @@ class Visitor {
   final String? email;
   final String? contact;
   final String? imagePath;
-  final String? detected_face;
+  late final String? detected_face;
+  late final String? guestPhoto;
   final String? checkInTime;
   final String? purposeOfVisit;
   final String? guestFrom;
@@ -1401,6 +1594,7 @@ class Visitor {
     this.contact,
     this.imagePath,
     this.detected_face,
+    this.guestPhoto,
     this.checkInTime,
     this.purposeOfVisit,
     this.guestFrom,
@@ -1419,6 +1613,7 @@ class Visitor {
       checkInTime: json['check_in_time'],
       purposeOfVisit: json['purpose_of_visit'],
       guestFrom: json['guestfrom'],
+      guestPhoto: json['guest_photo'],
     );
   }
 }

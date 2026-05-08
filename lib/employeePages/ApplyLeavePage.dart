@@ -5,8 +5,9 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../employee_leave_details_page.dart';
+import '../hrPages/employee_leave_details_page.dart';
 import '../widgets/toast.dart';
+import 'emp_drawer.dart';
 
 class ApplyLeavePage extends StatefulWidget {
   final DateTime? selectedDate;
@@ -24,7 +25,6 @@ class ApplyLeavePage extends StatefulWidget {
 
 class _ApplyLeavePageState extends State<ApplyLeavePage>
     with TickerProviderStateMixin {
-
   late TabController _tabController;
   DateTime? fromDate;
   DateTime? toDate;
@@ -47,12 +47,11 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
   bool isSubmitting = false;
   bool isModalOpened = false;
   int activeLeaveId = 0;
-  Set<int> expandedIndex = {};
+  Set<String> expandedIndex = <String>{};
 
   late TextEditingController fromDateController;
   late TextEditingController toDateController;
   late TextEditingController daysController;
-
 
   List teamLeaves = [];
   List filteredTeamLeaves = [];
@@ -75,11 +74,23 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
   String selectedTeamLeaveType = "All";
   String selectedTeamStatus = "All";
 
+  final FocusNode leaveTypeFocus = FocusNode();
+  final FocusNode reasonFocus = FocusNode();
+  final FocusNode fromDateFocus = FocusNode();
+  final FocusNode toDateFocus = FocusNode();
+
+  bool leaveTypeError = false;
+  bool reasonError = false;
+  bool fromDateError = false;
+  bool toDateError = false;
+
   @override
   void initState() {
     super.initState();
 
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController =
+        TabController(length: ((teamLeaves).isNotEmpty) ? 3 : 2, vsync: this);
+
     fromDateController = TextEditingController();
     toDateController = TextEditingController();
     daysController = TextEditingController();
@@ -112,7 +123,7 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
     fromDateController.text = formatDate(fromDate!);
     toDateController.text = formatDate(toDate!);
     daysController.text =
-    days % 1 == 0 ? days.toInt().toString() : days.toString();
+        days % 1 == 0 ? days.toInt().toString() : days.toString();
   }
 
   Future<void> fetchLeaveData() async {
@@ -190,27 +201,49 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
 
       final response = await http.get(
         Uri.parse(
-            "https://hrms.attendify.ai/index.php/MobileApi/allEmpLeaves?userId=$userID&levelId=$levelId"
+          "https://hrms.attendify.ai/index.php/MobileApi/allEmpLeaves?userId=$userID&levelId=$levelId",
         ),
-        headers: {"apiKey": apiKey, "companyDb": companyDb},
+        headers: {
+          "apiKey": apiKey,
+          "companyDb": companyDb,
+        },
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
-        teamLeaves = data['userLeaves'] ?? [];
+        // SAVE CURRENT TAB INDEX
+        int currentIndex = _tabController.index;
 
-        // print("teamLeaves $teamLeaves");
+        teamLeaves = data['userLeaves'] ?? [];
 
         List types = data['leaveType'] ?? [];
 
         teamLeaveTypes = {
           "All": "All",
-          for (var e in types)
-            e['type'].toString(): e['type'].toString()
+          for (var e in types) e['type'].toString(): e['type'].toString()
         };
 
         applyTeamFilter();
+
+        // NEW TAB COUNT
+        int newLength = teamLeaves.isNotEmpty ? 3 : 2;
+
+        // PREVENT INVALID INDEX
+        if (currentIndex >= newLength) {
+          currentIndex = newLength - 1;
+        }
+
+        // RECREATE CONTROLLER
+        _tabController.dispose();
+
+        _tabController = TabController(
+          length: newLength,
+          vsync: this,
+          initialIndex: currentIndex,
+        );
+
+        setState(() {});
       }
     } catch (e) {
       debugPrint(e.toString());
@@ -235,7 +268,9 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
     }
 
     if (selectedTeamStatus != "All") {
-      temp = temp.where((e) => e['approved'].toString() == selectedTeamStatus).toList();
+      temp = temp
+          .where((e) => e['approved'].toString() == selectedTeamStatus)
+          .toList();
     }
 
     setState(() {
@@ -287,7 +322,7 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
           toDate = picked;
         }
       } else {
-        /// ❌ Block To Date change for Half Day
+        ///  Block To Date change for Half Day
         if (leaveFor == "0.5") return;
 
         ///  Ensure To >= From
@@ -331,24 +366,40 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
   Future<void> submit() async {
     if (isSubmitting) return;
 
+    setState(() {
+      leaveTypeError = false;
+      reasonError = false;
+      fromDateError = false;
+      toDateError = false;
+    });
+
     if (selectedLeaveTypeId == null || selectedLeaveTypeId!.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Select leave type")),
-      );
+      setState(() => leaveTypeError = true);
+
+      FocusScope.of(context).requestFocus(leaveTypeFocus);
+
+      AppToast.show("Select leave type", isError: true);
       return;
     }
 
     if (reasonController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Enter reason")),
-      );
+      setState(() => reasonError = true);
+
+      FocusScope.of(context).requestFocus(reasonFocus);
+
+      AppToast.show("Enter reason", isError: true);
       return;
     }
 
     if (toDate!.isBefore(fromDate!)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Invalid date range")),
-      );
+      setState(() {
+        fromDateError = true;
+        toDateError = true;
+      });
+
+      FocusScope.of(context).requestFocus(toDateFocus);
+
+      AppToast.show("Invalid date range", isError: true);
       return;
     }
 
@@ -384,8 +435,7 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
       String empCode = prefs.getString('employe_code') ?? "";
 
       final response = await http.post(
-        Uri.parse(
-            "https://hrms.attendify.ai/index.php/MobileApi/apply_leave"), // <-- your submit API
+        Uri.parse("https://hrms.attendify.ai/index.php/MobileApi/apply_leave"),
         headers: {"apiKey": apiKey, "companyDb": companyDb},
         body: {
           "cid": cid,
@@ -403,25 +453,14 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
 
       if (res['status'] == true) {
         await fetchLeaveData();
-
         if (!mounted) return;
-
         _tabController.animateTo(1);
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Leave applied successfully")),
-        );
-      }else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(res['message'] ?? "Failed to apply leave")),
-        );
+        AppToast.show("Leave applied successfully");
+      } else {
+        AppToast.show("Failed to apply leave", isError: true);
       }
     } catch (e) {
-      print(e);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Something went wrong")),
-      );
+      AppToast.show("Something went wrong", isError: true);
     } finally {
       setState(() => isSubmitting = false);
     }
@@ -584,7 +623,7 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'Leave',
+          'Leaves',
           style: TextStyle(
             color: Colors.white,
             fontSize: _s(20, scale),
@@ -593,7 +632,9 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
         backgroundColor: const Color(0xFF0557a2),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-
+      drawer: CustomDrawer(
+        currentRoute: '/emp_leave',
+      ),
       body: Column(
         children: [
           ///  TOP SPACING
@@ -625,10 +666,10 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
                 indicatorSize: TabBarIndicatorSize.tab,
                 splashBorderRadius: BorderRadius.circular(25),
 
-                tabs: const [
-                  Tab(text: "Apply"),
-                  Tab(text: "My Leaves"),
-                  Tab(text: "Team Leaves"),
+                tabs: [
+                  const Tab(text: "Apply"),
+                  const Tab(text: "My Leaves"),
+                  if (teamLeaves.isNotEmpty) const Tab(text: "Team Leaves"),
                 ],
               )),
 
@@ -642,8 +683,7 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
               children: [
                 _applyTab(),
                 _listTab(),
-                _teamLeavesTab(),
-
+                if (teamLeaves.isNotEmpty) _teamLeavesTab(),
               ],
             ),
           ),
@@ -658,9 +698,8 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
     leaveFor = "1";
     days = 1.0;
 
-    selectedLeaveTypeId = leaveTypes.isNotEmpty
-        ? leaveTypes[0]['type_id'].toString()
-        : null;
+    selectedLeaveTypeId =
+        leaveTypes.isNotEmpty ? leaveTypes[0]['type_id'].toString() : null;
 
     reasonController.clear();
 
@@ -846,6 +885,7 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
                               DropdownButtonFormField<String>(
                                 value: selectedLeaveTypeId,
                                 hint: const Text("Select Leave Type"),
+                                focusNode: leaveTypeFocus,
                                 items: leaveTypes
                                     .map<DropdownMenuItem<String>>((e) {
                                   return DropdownMenuItem(
@@ -858,8 +898,11 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
                                     selectedLeaveTypeId = v;
                                   });
                                 },
-                                decoration: premiumInput("Leave Category",
-                                    icon: Icons.category),
+                                decoration: premiumInput(
+                                  "Leave Category",
+                                  icon: Icons.category,
+                                  hasError: leaveTypeError,
+                                ),
                               ))),
 
                       _wrapItem(
@@ -885,7 +928,9 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
                                 });
                               },
                               decoration: premiumInput("Leave For",
-                                  icon: Icons.timelapse),
+                                  icon: Icons.timelapse
+                              ),
+
                             ),
                           )),
 
@@ -895,10 +940,11 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
                           scale,
                           TextFormField(
                             readOnly: true,
-                  controller: fromDateController,
+                            focusNode: fromDateFocus,
+                            controller: fromDateController,
                             onTap: () => pickDate(true),
                             decoration: premiumInput("From Date",
-                                icon: Icons.calendar_today),
+                                icon: Icons.calendar_today,hasError: fromDateError,),
                           ),
                         ),
                       ),
@@ -909,12 +955,13 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
                           scale,
                           TextFormField(
                             readOnly: true,
+                            focusNode: toDateFocus,
                             controller: toDateController,
                             onTap: leaveFor == "0.5"
                                 ? null
                                 : () => pickDate(false),
                             decoration: premiumInput("To Date",
-                                icon: Icons.calendar_today),
+                                icon: Icons.calendar_today,hasError: toDateError,),
                           ),
                         ),
                       ),
@@ -939,9 +986,21 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
                           scale,
                           TextField(
                             controller: reasonController,
+                            focusNode: reasonFocus,
                             maxLines: 2,
-                            decoration:
-                                premiumInput("Reason", icon: Icons.edit),
+                            maxLength: 500,
+                            decoration: premiumInput(
+                              "Reason",
+                              icon: Icons.edit,
+                              hasError: reasonError,
+                            ).copyWith(
+                              helperText: "Minimum 5 characters",
+                            ),
+                            onChanged: (value) {
+                              if (value.trim().length >= 5) {
+                                setState(() => reasonError = false);
+                              }
+                            },
                           ),
                         ),
                       ),
@@ -987,397 +1046,401 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
       onRefresh: fetchLeaveData,
       child: myLeaves.isEmpty
           ? ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        children: const [
-          SizedBox(height: 200),
-          Center(child: Text("No leaves found")),
-        ],
-      )
-          : ListView.builder(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.only(bottom: 10, left: 10, right: 10),
-        itemCount: myLeaves.length,
-        itemBuilder: (context, index) {
-          final item = myLeaves[index];
-
-          int status = int.tryParse(item['approved'].toString()) ?? 0;
-
-          DateTime today = DateTime.now();
-          DateTime fromDate = DateTime.parse(item['from_date']);
-          DateTime applieDate = DateTime.parse(item['applied_date']);
-
-          DateTime todayDate =
-          DateTime(today.year, today.month, today.day);
-          DateTime fromDateOnly =
-          DateTime(fromDate.year, fromDate.month, fromDate.day);
-
-          bool isFutureOrToday = !fromDateOnly.isBefore(todayDate);
-
-          bool showAction =
-              (status == 0) || (status == 1 && isFutureOrToday);
-
-          return Container(
-            margin: const EdgeInsets.only(bottom: 10),
-            padding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                )
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: const [
+                SizedBox(height: 200),
+                Center(child: Text("No leaves found")),
               ],
-            ),
+            )
+          : ListView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.only(
+                bottom: 10,
+                left: 10,
+                right: 10,
+              ),
+              itemCount: myLeaves.length,
+              itemBuilder: (context, index) {
+                final item = myLeaves[index];
 
-            ///  FIXED STRUCTURE
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+                int status = int.tryParse(item['approved'].toString()) ?? 0;
 
-                /// ================= TOP ROW =================
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                DateTime today = DateTime.now();
+                DateTime fromDate = DateTime.parse(item['from_date']);
 
-                    /// LEFT
-                    Expanded(
-                      flex: 5,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
+                DateTime appliedDate = DateTime.parse(item['applied_date']);
 
-                          /// Applied Date
-                          Row(
-                            children: [
-                              const Icon(Icons.access_time,
-                                  size: 12, color: Colors.grey),
-                              const SizedBox(width: 4),
-                              Text(
-                                formatDate(applieDate),
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.grey.shade500,
-                                ),
-                              ),
-                            ],
-                          ),
+                DateTime todayDate =
+                    DateTime(today.year, today.month, today.day);
 
-                          const SizedBox(height: 2),
+                DateTime fromDateOnly =
+                    DateTime(fromDate.year, fromDate.month, fromDate.day);
 
-                          /// Leave Type
-                          Text(
-                            item['type'] ?? "",
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 13,
-                            ),
-                          ),
+                bool isFutureOrToday = !fromDateOnly.isBefore(todayDate);
 
-                          const SizedBox(height: 5),
+                bool showAction =
+                    (status == 0) || (status == 1 && isFutureOrToday);
 
-                          /// Reporting Person
-                          Row(
-                            children: [
-                              const Icon(Icons.person_outline,
-                                  size: 14, color: Colors.grey),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  item['reporting_to_name'] ?? "",
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: Colors.grey.withOpacity(0.15),
                     ),
-
-                    /// RIGHT
-                    Expanded(
-                      flex: 4,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-
-                          /// Date Range
-                          Text(
-                            "${formatDate(DateTime.parse(item['from_date']))} - ${formatDate(DateTime.parse(item['to_date']))}",
-                            textAlign: TextAlign.right,
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-
-                          const SizedBox(height: 4),
-
-                          /// Days
-                          Text(
-                            "${item['days']} days",
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.grey.shade700,
-                            ),
-                          ),
-
-                          const SizedBox(height: 6),
-
-                          /// Status + Actions
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-
-                              /// Withdraw
-                              if (showAction)
-                                GestureDetector(
-                                  onTap: () {
-                                    withdrawLeave(item['leave_id'].toString());
-                                  },
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 0, // ↓ reduced from 3 → 1
-                                    ),
-                                    constraints: const BoxConstraints(
-                                      minHeight: 20, // control height
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.deepOrangeAccent.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(20),
-                                      border: Border.all(color: Colors.deepOrangeAccent),
-                                    ),
-                                    child: const Icon(Icons.outbound, size: 15 , color: Colors.orange,),
-                                    // child: const Text(
-                                    //   "Withdraw",
-                                    //   style: TextStyle(
-                                    //     fontSize: 14, // you can also reduce to 9 if needed
-                                    //     color: Colors.deepOrangeAccent,
-                                    //     fontWeight: FontWeight.w600,
-                                    //     // height: 1.0, // tighter text height
-                                    //   ),
-                                    // ),
-                                  ),
-                                ),
-
-                              const SizedBox(width: 8),
-
-                              /// Edit
-                              if (status == 0)
-                                GestureDetector(
-                                  onTap: () {
-                                    int leaveId = int.tryParse(
-                                        item['leave_id'].toString()) ??
-                                        0;
-                                    openEditLeaveModal(leaveId);
-                                  },
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 0, // ↓ reduced from 3 → 1
-                                    ),
-                                    constraints: const BoxConstraints(
-                                      minHeight: 20, // control height
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.lightBlueAccent.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(20),
-                                      border: Border.all(color: Colors.lightBlueAccent),
-                                    ),
-                                    child: const Icon(Icons.edit, size: 15 , color: Colors.blue,),
-                                  ),
-                                  // const Icon(Icons.edit, size: 15),
-                                ),
-                            ],
-                          ),
-                        ],
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
                       ),
-                    ),
-                  ],
-                ),
-
-                /// ================= REASON =================
-                if ((item['reason'] ?? "").toString().isNotEmpty) ...[
-                  const SizedBox(height: 8),
-
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      bool overflow = isTextOverflow(
-                        item['reason'],
-                        constraints.maxWidth,
-                        const TextStyle(fontSize: 11),
-                      );
-
-                      return Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Icon(Icons.notes, size: 14, color: Colors.grey),
-                          const SizedBox(width: 6),
-
-                          Expanded(
-                            child: Text(
-                              item['reason'],
-                              maxLines: overflow
-                                  ? (expandedIndex.contains(index) ? null : 2)
-                                  : null,
-                              overflow: overflow
-                                  ? (expandedIndex.contains(index)
-                                  ? TextOverflow.visible
-                                  : TextOverflow.ellipsis)
-                                  : TextOverflow.visible,
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.grey.shade700,
-                              ),
-                            ),
-                          ),
-
-                          if (overflow)
-                            GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  if (expandedIndex.contains(index)) {
-                                    expandedIndex.remove(index);
-                                  } else {
-                                    expandedIndex.add(index);
-                                  }
-                                });
-                              },
-                              child: Icon(
-                                expandedIndex.contains(index)
-                                    ? Icons.expand_less
-                                    : Icons.expand_more,
-                                size: 18,
-                                color: Colors.grey,
-                              ),
-                            ),
-
-                          const SizedBox(width: 6),
-
-                          Container(
-                            padding:
-                            const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: getStatusColor(status).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              getStatusText(status),
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                color: getStatusColor(status),
-                              ),
-                            ),
-                          ),
-                        ],
-                      );
-                    },
+                    ],
                   ),
-                ],
-
-                if (status == 2) ...[
-                  const SizedBox(height: 8),
-
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      bool overflow = isTextOverflow(
-                        item['reject_reason'],
-                        constraints.maxWidth,
-                        const TextStyle(fontSize: 11),
-                      );
-
-                      return Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      /// TOP CONTENT
+                      Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(Icons.cancel, size: 14, color: Colors.red),
-                          const SizedBox(width: 6),
-
+                          /// LEFT CONTENT
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  item['updated_by_name'] ?? "Rejected",
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    // color: Colors.red.shade600,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-
-                                if ((item['reject_reason'] ?? "")
-                                    .toString()
-                                    .isNotEmpty)
-                                  Row(
-                                    crossAxisAlignment:
-                                    CrossAxisAlignment.start,
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          item['reject_reason'],
-                                          maxLines: overflow
-                                              ? (expandedIndex.contains(index)
-                                              ? null
-                                              : 2)
-                                              : null,
-                                          overflow: overflow
-                                              ? (expandedIndex.contains(index)
-                                              ? TextOverflow.visible
-                                              : TextOverflow.ellipsis)
-                                              : TextOverflow.visible,
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            color: Colors.grey,
-                                          ),
+                                /// ROW 1
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        item['type'] ?? "",
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
                                         ),
                                       ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 3,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: getStatusColor(status)
+                                            .withOpacity(0.12),
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(
+                                          color: getStatusColor(status)
+                                              .withOpacity(0.3),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        getStatusText(status),
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w600,
+                                          color: getStatusColor(status),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
 
-                                      if (overflow)
-                                        GestureDetector(
-                                          onTap: () {
-                                            setState(() {
-                                              if (expandedIndex
-                                                  .contains(index)) {
-                                                expandedIndex.remove(index);
-                                              } else {
-                                                expandedIndex.add(index);
-                                              }
-                                            });
-                                          },
-                                          child: Icon(
-                                            expandedIndex.contains(index)
-                                                ? Icons.expand_less
-                                                : Icons.expand_more,
-                                            size: 18,
+                                const SizedBox(height: 3),
+
+                                /// ROW 2
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      flex: 3,
+                                      child: Text(
+                                        item['reporting_to_name'] ?? "",
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.grey.shade600,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      flex: 10,
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.end,
+                                        children: [
+                                          const Icon(
+                                            Icons.calendar_today,
+                                            size: 12,
                                             color: Colors.grey,
                                           ),
-                                        ),
-                                    ],
-                                  ),
+                                          const SizedBox(width: 4),
+                                          Flexible(
+                                            child: Text(
+                                              "${formatDate(DateTime.parse(item['from_date']))} → ${formatDate(DateTime.parse(item['to_date']))}"
+                                              " (${item['days']} ${double.tryParse(item['days'].toString()) == 1 ? 'day' : 'days'})",
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                              textAlign: TextAlign.end,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ],
                             ),
                           ),
                         ],
-                      );
-                    },
+                      ),
+
+                      const SizedBox(height: 6),
+
+                      /// APPLIED DATE + ACTIONS
+                      Row(
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.access_time,
+                                size: 12,
+                                color: Colors.grey,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                formatDate(appliedDate),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey.shade700,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const Spacer(),
+                          if (showAction)
+                            GestureDetector(
+                              onTap: () {
+                                withdrawLeave(
+                                  item['leave_id'].toString(),
+                                );
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color:
+                                      Colors.deepOrangeAccent.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: Colors.deepOrangeAccent,
+                                  ),
+                                ),
+                                child: const Icon(
+                                  Icons.outbound,
+                                  size: 15,
+                                  color: Colors.orange,
+                                ),
+                              ),
+                            ),
+                          if (showAction) const SizedBox(width: 8),
+                          if (status == 0)
+                            GestureDetector(
+                              onTap: () {
+                                int leaveId =
+                                    int.tryParse(item['leave_id'].toString()) ??
+                                        0;
+
+                                openEditLeaveModal(leaveId);
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color:
+                                      Colors.lightBlueAccent.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: Colors.lightBlueAccent,
+                                  ),
+                                ),
+                                child: const Icon(
+                                  Icons.edit,
+                                  size: 15,
+                                  color: Colors.blue,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+
+                      /// REASON
+                      if ((item['reason'] ?? "").toString().isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            bool overflow = isTextOverflow(
+                              item['reason'],
+                              constraints.maxWidth,
+                              const TextStyle(
+                                fontSize: 11,
+                                height: 1.4,
+                              ),
+                            );
+
+                            return Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Icon(
+                                  Icons.notes,
+                                  size: 14,
+                                  color: Colors.grey,
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    item['reason'],
+                                    maxLines: overflow
+                                        ? (expandedIndex
+                                                .contains("listreason_$index")
+                                            ? null
+                                            : 2)
+                                        : null,
+                                    overflow: overflow
+                                        ? (expandedIndex
+                                                .contains("listreason_$index")
+                                            ? TextOverflow.visible
+                                            : TextOverflow.ellipsis)
+                                        : TextOverflow.visible,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.grey.shade700,
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ),
+                                if (overflow)
+                                  GestureDetector(
+                                    onTap: () {
+                                      setState(() {
+                                        if (expandedIndex
+                                            .contains("listreason_$index")) {
+                                          expandedIndex
+                                              .remove("listreason_$index");
+                                        } else {
+                                          expandedIndex
+                                              .add("listreason_$index");
+                                        }
+                                      });
+                                    },
+                                    child: Icon(
+                                      expandedIndex
+                                              .contains("listreason_$index")
+                                          ? Icons.expand_less
+                                          : Icons.expand_more,
+                                      size: 18,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                              ],
+                            );
+                          },
+                        ),
+                      ],
+
+                      /// REJECT REASON
+                      if (status == 2 &&
+                          (item['reject_reason'] ?? "")
+                              .toString()
+                              .isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            bool overflow = isTextOverflow(
+                              item['reject_reason'],
+                              constraints.maxWidth,
+                              const TextStyle(
+                                fontSize: 11,
+                                height: 1.4,
+                              ),
+                            );
+
+                            return Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Icon(
+                                  Icons.cancel,
+                                  size: 14,
+                                  color: Colors.red,
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    item['reject_reason'],
+                                    maxLines: overflow
+                                        ? (expandedIndex
+                                                .contains("listreject_$index")
+                                            ? null
+                                            : 2)
+                                        : null,
+                                    overflow: overflow
+                                        ? (expandedIndex
+                                                .contains("listreject_$index")
+                                            ? TextOverflow.visible
+                                            : TextOverflow.ellipsis)
+                                        : TextOverflow.visible,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.grey.shade700,
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ),
+                                if (overflow)
+                                  GestureDetector(
+                                    onTap: () {
+                                      setState(() {
+                                        if (expandedIndex
+                                            .contains("listreject_$index")) {
+                                          expandedIndex
+                                              .remove("listreject_$index");
+                                        } else {
+                                          expandedIndex
+                                              .add("listreject_$index");
+                                        }
+                                      });
+                                    },
+                                    child: Icon(
+                                      expandedIndex
+                                              .contains("listreject_$index")
+                                          ? Icons.expand_less
+                                          : Icons.expand_more,
+                                      size: 18,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                              ],
+                            );
+                          },
+                        ),
+                      ],
+                    ],
                   ),
-                ],
-              ],
+                );
+              },
             ),
-          );
-        },
-      ),
     );
   }
 
@@ -1387,120 +1450,88 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
       child: teamLoading
           ? const Center(child: CircularProgressIndicator())
           : filteredTeamLeaves.isEmpty
-          ? const Center(child: Text("No team leaves"))
-          : ListView.builder(
-        padding: const EdgeInsets.all(10),
-        itemCount: filteredTeamLeaves.length,
-        itemBuilder: (context, index) {
-          final item = filteredTeamLeaves[index];
+              ? const Center(child: Text("No team leaves"))
+              : ListView.builder(
+                  padding: const EdgeInsets.all(10),
+                  itemCount: filteredTeamLeaves.length,
+                  itemBuilder: (context, index) {
+                    final item = filteredTeamLeaves[index];
 
-          int status = int.tryParse(item['approved'].toString()) ?? 0;
+                    return GestureDetector(
+                      onTap: () async {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => EmployeeLeaveDetailsPage(
+                              userId: item['user_id'].toString(),
+                              empCode: item['employe_code'] ?? "",
+                              item: item,
+                            ),
+                          ),
+                        );
 
-          return GestureDetector(
-            onTap: () async {
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => EmployeeLeaveDetailsPage(
-                    userId: item['user_id'].toString(),
-                    empCode: item['employe_code'] ?? "",
-                    item: item,
-                  ),
+                        if (result == true) {
+                          fetchTeamLeaves(); // refresh
+                        }
+                      },
+                      child: leaveCard(item, index),
+                    );
+                  },
                 ),
-              );
-
-              if (result == true) {
-                fetchTeamLeaves(); // refresh
-              }
-            },
-            child: leaveCard(item, index),
-          );
-        },
-      ),
     );
   }
 
   Widget leaveCard(Map item, int index) {
     int status = int.tryParse(item['approved'].toString()) ?? 0;
+    DateTime appliedDate = DateTime.parse(item['applied_date']);
 
-    DateTime applieDate = DateTime.parse(item['applied_date']);
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: Colors.white,
-        // color: getStatusColor(status).withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.grey.withOpacity(0.2),
-        ),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey.withOpacity(0.15)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-
-          /// TOP ROW
+          ///  MAIN ROW
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              /// AVATAR
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: Colors.grey.shade200,
+                backgroundImage: item['profile_thumbnail'] != null &&
+                        item['profile_thumbnail'].toString().isNotEmpty
+                    ? NetworkImage(
+                        "https://hrms.attendify.ai/photos/${item['profile_thumbnail']}")
+                    : null,
+                child: (item['profile_thumbnail'] == null ||
+                        item['profile_thumbnail'].toString().isEmpty)
+                    ? const Icon(Icons.person, size: 18, color: Colors.grey)
+                    : null,
+              ),
 
+              const SizedBox(width: 10),
+
+              /// RIGHT CONTENT
               Expanded(
-                flex: 6,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-
+                    /// 🔹 ROW 1 → NAME + STATUS
                     Row(
                       children: [
-                        const Icon(Icons.access_time, size: 12, color: Colors.grey),
-                        const SizedBox(width: 4),
-                        Text(
-                          formatDateNew(applieDate.toString()),
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Colors.grey.shade500,
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 4),
-
-                    Text(
-                      item['type'] ?? "",
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                      ),
-                    ),
-
-                    const SizedBox(height: 6),
-                    /// PROFILE + USER NAME (NEW TOP SECTION)
-                    Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 16,
-                          backgroundColor: Colors.grey.shade200,
-                          backgroundImage: item['profile_thumbnail'] != null &&
-                              item['profile_thumbnail'].toString().isNotEmpty
-                              ? NetworkImage(
-                              "https://hrms.attendify.ai/photos/${item['profile_thumbnail']}")
-                              : null,
-                          child: (item['profile_thumbnail'] == null ||
-                              item['profile_thumbnail'].toString().isEmpty)
-                              ? const Icon(Icons.person, size: 18, color: Colors.grey)
-                              : null,
-                        ),
-                        const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             item['applied_username'] ?? "",
@@ -1512,95 +1543,107 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
                             ),
                           ),
                         ),
+                        _statusChip(status),
                       ],
                     ),
 
-                  ],
-                ),
-              ),
+                    const SizedBox(height: 3),
 
-              Expanded(
-                flex: 5,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-
-
-                    _statusChip(status),
-                    const SizedBox(height: 6),
-                    RichText(
-                      textAlign: TextAlign.right,
-                      text: TextSpan(
-                        children: [
-                          TextSpan(
-                            text:
-                            "${formatDateNew(item['from_date'])} - ${formatDateNew(item['to_date'])} ",
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w400, //  more weight
-                              color: Colors.black87,
-                            ),
-                          ),
-                          TextSpan(
-                            text:
-                            "(${item['days']} ${double.tryParse(item['days'].toString()) == 1 ? 'day' : 'days'})",
+                    /// 🔹 ROW 2 → LEAVE TYPE (LEFT) + DATE RANGE (RIGHT)
+                    Row(
+                      children: [
+                        /// LEFT → LEAVE TYPE
+                        Expanded(
+                          flex: 3,
+                          child: Text(
+                            item['type'] ?? "",
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 11,
                               color: Colors.grey.shade600,
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        // const Icon(Icons.subdirectory_arrow_right, size: 14, color: Colors.grey),
-                        // const SizedBox(width: 6),
+                        ),
+
+                        const SizedBox(width: 8),
+
+                        /// RIGHT → DATE RANGE
                         Expanded(
-                          child: Text(
-                            item['reporting_to_name'] ?? "",
-                            maxLines: 1,
-                            textAlign: TextAlign.end,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 11),
+                          flex: 10,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              const Icon(
+                                Icons.calendar_today,
+                                size: 12,
+                                color: Colors.grey,
+                              ),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  "${formatDateNew(item['from_date'])} → ${formatDateNew(item['to_date'])} "
+                                  "(${item['days']} ${double.tryParse(item['days'].toString()) == 1 ? 'day' : 'days'})",
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.end,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
-                    ),
-                    // const SizedBox(height: 6),
-                    // if (status == 0)
-                    //   // Row(
-                    //   //   mainAxisAlignment: MainAxisAlignment.end,
-                    //     // children: [
-                    //       // _actionBtn(
-                    //       //   icon: Icons.close,
-                    //       //   label: "Reject",
-                    //       //   color: Colors.red,
-                    //       //   onTap: () => rejectLeave(item['leave_id'].toString()),
-                    //       // ),
-                    //       // const SizedBox(width: 6),
-                    //       // _actionBtn(
-                    //       //   icon: Icons.check,
-                    //       //   label: "Approve",
-                    //       //   color: Colors.green,
-                    //       //   onTap: () => approveLeave(item['leave_id'].toString()),
-                    //       // ),
-                    //     // ],
-                    //   ),
+                    )
                   ],
                 ),
               ),
             ],
           ),
 
-          /// REASON + EXPAND
+          const SizedBox(height: 6),
+
+          /// 🔹 ROW 3 → APPLIED DATE + REPORTING
+          Row(
+            children: [
+              /// LEFT → Applied Date
+              Row(
+                children: [
+                  const Icon(Icons.access_time, size: 12, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Text(
+                    formatDateNew(appliedDate.toString()),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                ],
+              ),
+
+              /// RIGHT → Reporting Name (FULL RIGHT ALIGN)
+              Expanded(
+                child: Text(
+                  item['reporting_to_name'] ?? "",
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          /// 🔹 REASON
           if ((item['reason'] ?? "").toString().isNotEmpty) ...[
             const SizedBox(height: 8),
-
             LayoutBuilder(
               builder: (context, constraints) {
-
                 bool overflow = isTextOverflow(
                   item['reason'],
                   constraints.maxWidth,
@@ -1610,7 +1653,6 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-
                     const Icon(Icons.notes, size: 14, color: Colors.grey),
                     const SizedBox(width: 6),
 
@@ -1618,12 +1660,14 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
                       child: Text(
                         item['reason'],
                         maxLines: overflow
-                            ? (expandedIndex.contains(index) ? null : 2)
+                            ? (expandedIndex.contains("reason_$index")
+                                ? null
+                                : 2)
                             : null,
                         overflow: overflow
-                            ? (expandedIndex.contains(index)
-                            ? TextOverflow.visible
-                            : TextOverflow.ellipsis)
+                            ? (expandedIndex.contains("reason_$index")
+                                ? TextOverflow.visible
+                                : TextOverflow.ellipsis)
                             : TextOverflow.visible,
                         style: TextStyle(
                           fontSize: 11,
@@ -1638,15 +1682,15 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
                       GestureDetector(
                         onTap: () {
                           setState(() {
-                            if (expandedIndex.contains(index)) {
-                              expandedIndex.remove(index);
+                            if (expandedIndex.contains("reason_$index")) {
+                              expandedIndex.remove("reason_$index");
                             } else {
-                              expandedIndex.add(index);
+                              expandedIndex.add("reason_$index");
                             }
                           });
                         },
                         child: Icon(
-                          expandedIndex.contains(index)
+                          expandedIndex.contains("reason_$index")
                               ? Icons.expand_less
                               : Icons.expand_more,
                           size: 18,
@@ -1656,19 +1700,18 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
 
                     // const SizedBox(width: 6),
                     // _statusChip(status),
-
                   ],
                 );
               },
             ),
           ],
 
-          if (status == 2 && (item['reject_reason'] ?? "").toString().isNotEmpty) ...[
+          /// 🔹 REJECT REASON
+          if (status == 2 &&
+              (item['reject_reason'] ?? "").toString().isNotEmpty) ...[
             const SizedBox(height: 10),
-
             LayoutBuilder(
               builder: (context, constraints) {
-
                 bool overflow = isTextOverflow(
                   item['reject_reason'],
                   constraints.maxWidth,
@@ -1678,7 +1721,6 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-
                     const Icon(Icons.cancel, size: 14, color: Colors.red),
                     const SizedBox(width: 6),
 
@@ -1686,12 +1728,14 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
                       child: Text(
                         item['reject_reason'],
                         maxLines: overflow
-                            ? (expandedIndex.contains(index) ? null : 2)
+                            ? (expandedIndex.contains("reject_$index")
+                                ? null
+                                : 2)
                             : null,
                         overflow: overflow
-                            ? (expandedIndex.contains(index)
-                            ? TextOverflow.visible
-                            : TextOverflow.ellipsis)
+                            ? (expandedIndex.contains("reject_$index")
+                                ? TextOverflow.visible
+                                : TextOverflow.ellipsis)
                             : TextOverflow.visible,
                         style: TextStyle(
                           fontSize: 11,
@@ -1706,15 +1750,15 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
                       GestureDetector(
                         onTap: () {
                           setState(() {
-                            if (expandedIndex.contains(index)) {
-                              expandedIndex.remove(index);
+                            if (expandedIndex.contains("reject_$index")) {
+                              expandedIndex.remove("reject_$index");
                             } else {
-                              expandedIndex.add(index);
+                              expandedIndex.add("reject_$index");
                             }
                           });
                         },
                         child: Icon(
-                          expandedIndex.contains(index)
+                          expandedIndex.contains("reject_$index")
                               ? Icons.expand_less
                               : Icons.expand_more,
                           size: 18,
@@ -1767,28 +1811,106 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
     return tp.didExceedMaxLines;
   }
 
-  InputDecoration premiumInput(String label, {IconData? icon}) {
+  InputDecoration premiumInput(
+      String label, {
+        IconData? icon,
+        bool hasError = false,
+        bool isOptional = false,
+      }) {
     return InputDecoration(
-      labelText: label,
+
+      /// LABEL WITH RED *
+      label: RichText(
+        text: TextSpan(
+          children: [
+
+            TextSpan(
+              text: label,
+              style: TextStyle(
+                color: hasError
+                    ? Colors.red
+                    : Colors.grey.shade700,
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+
+            if (!isOptional)
+              const TextSpan(
+                text: " *",
+                style: TextStyle(
+                  color: Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+          ],
+        ),
+      ),
+
       filled: true,
-      fillColor: Colors.grey.shade50,
+
+      /// LIGHT RED BG WHEN ERROR
+      fillColor: hasError
+          ? Colors.red.shade50
+          : Colors.grey.shade50,
+
       prefixIcon: icon != null
-          ? Icon(icon, size: 18, color: Colors.grey.shade600)
+          ? Icon(
+        icon,
+        size: 18,
+        color: hasError
+            ? Colors.red
+            : Colors.grey.shade600,
+      )
           : null,
-      contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+
+      contentPadding: const EdgeInsets.symmetric(
+        vertical: 14,
+        horizontal: 12,
+      ),
+
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.grey.shade300),
+        borderSide: BorderSide(
+          color: hasError
+              ? Colors.red.shade300
+              : Colors.grey.shade300,
+        ),
       ),
+
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.grey.shade300),
+        borderSide: BorderSide(
+          color: hasError
+              ? Colors.red.shade300
+              : Colors.grey.shade300,
+        ),
       ),
+
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFF0557a2), width: 1.5),
+        borderSide: BorderSide(
+          color: hasError
+              ? Colors.red
+              : const Color(0xFF0557a2),
+          width: 1.6,
+        ),
       ),
-      labelStyle: TextStyle(color: Colors.grey.shade600),
+
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(
+          color: Colors.red.shade400,
+        ),
+      ),
+
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(
+          color: Colors.red,
+          width: 1.6,
+        ),
+      ),
     );
   }
 
@@ -1874,7 +1996,7 @@ class _EditLeaveModalState extends State<EditLeaveModal> {
     fromDateController.text = formatDate(fromDate!);
     toDateController.text = formatDate(toDate!);
     daysController.text =
-    days % 1 == 0 ? days.toInt().toString() : days.toString();
+        days % 1 == 0 ? days.toInt().toString() : days.toString();
   }
 
   void calculateDays() {
@@ -1936,7 +2058,6 @@ class _EditLeaveModalState extends State<EditLeaveModal> {
     });
   }
 
-
   Future<void> updateLeave() async {
     if (isSubmitting) return;
 
@@ -1969,8 +2090,7 @@ class _EditLeaveModalState extends State<EditLeaveModal> {
       String companyDb = prefs.getString('companyDb') ?? "";
 
       final response = await http.post(
-        Uri.parse(
-            "https://hrms.attendify.ai/index.php/MobileApi/update_leave"),
+        Uri.parse("https://hrms.attendify.ai/index.php/MobileApi/update_leave"),
         headers: {"apiKey": apiKey, "companyDb": companyDb},
         body: {
           "leave_id": widget.leave['leave_id'],
@@ -2011,8 +2131,6 @@ class _EditLeaveModalState extends State<EditLeaveModal> {
   ///  SAME DESIGN AS APPLY TAB
   @override
   Widget build(BuildContext context) {
-    double scale = 1;
-
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
       appBar: AppBar(

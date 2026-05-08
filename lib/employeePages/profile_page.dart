@@ -6,6 +6,8 @@ import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'emp_drawer.dart';
+
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
 
@@ -152,6 +154,7 @@ class _ProfilePageState extends State<ProfilePage>
         backgroundColor: const Color(0xFF0557a2),
         foregroundColor: Colors.white,
       ),
+      drawer: CustomDrawer(currentRoute: '/profile',),
         body: RefreshIndicator(
           onRefresh: () async {
             await fetchEmployeeDetails();

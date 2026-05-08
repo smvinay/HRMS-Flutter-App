@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
 import 'SelfAttendanceCamera.dart';
+import 'emp_drawer.dart';
 
 class AttendanceCal extends StatefulWidget {
   const AttendanceCal({super.key});
@@ -127,6 +128,10 @@ class _AttendanceCalState extends State<AttendanceCal> {
 
     bool shouldUseCache =
         !forceRefresh && box.containsKey(cacheKey) && !isCurrentMonth;
+
+    if (forceRefresh) {
+      await box.clear();
+    }
 
     if (shouldUseCache) {
       final cachedData = box.get(cacheKey);
@@ -354,6 +359,7 @@ class _AttendanceCalState extends State<AttendanceCal> {
         backgroundColor: const Color(0xFF0557a2),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
+      drawer: CustomDrawer(currentRoute: '/emp_attendance_cal',),
       body: RefreshIndicator(
         onRefresh: () async {
           DateTime now = DateTime.now();
@@ -446,24 +452,7 @@ class _AttendanceCalState extends State<AttendanceCal> {
                         leaves.any((l) => l['status'] == 1);
                   }
 
-                  ///  NAVIGATION
-                  // if (selectedDate.isAfter(todayDate) &&
-                  //     !isHoliday &&
-                  //     !isApprovedLeave) {
-                  //
-                  //   Navigator.push(
-                  //     context,
-                  //     MaterialPageRoute(
-                  //       builder: (_) => ApplyLeavePage(
-                  //         selectedDate: selectedDate,
-                  //         leaveId: leaveId,   //  PASS HERE
-                  //       ),
-                  //     ),
-                  //   );
-                  //   return;
-                  // }
-
-                  /// 👉 CHECKOUT LOGIC
+                  ///  CHECKOUT LOGIC
                   bool latestStatus = hasData &&
                       attendanceMap[key]['lateststatus'] == "checkin";
 
@@ -1010,6 +999,13 @@ class _AttendanceCalState extends State<AttendanceCal> {
       );
     }
 
+    if (isSelected) {
+      border = Border.all(
+        color: const Color(0xFF0557A2).withOpacity(0.5),
+        width: 1,
+      );
+    }
+
     return Stack(
       children: [
         /// MAIN DAY CIRCLE
@@ -1516,12 +1512,12 @@ class _AttendanceCalState extends State<AttendanceCal> {
   }
 
   Widget _buildAttendanceBox(
-    String title,
-    String time,
-    String? image,
-    Color color,
-    double scale,
-  ) {
+      String title,
+      String time,
+      String? image,
+      Color color,
+      double scale,
+      ) {
     return Container(
       padding: EdgeInsets.all(_s(10, scale)),
       decoration: BoxDecoration(
@@ -1552,40 +1548,57 @@ class _AttendanceCalState extends State<AttendanceCal> {
             ],
           ),
           SizedBox(height: _s(8, scale)),
-          if (image != null && image != "")
-            GestureDetector(
-              onTap: () => showImage(image),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(_s(8, scale)),
-                child: Stack(
-                  children: [
-                    Image.network(
-                      "https://hrms.attendify.ai/detectedImages/$image",
-                      height: _s(95, scale),
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                    ),
-                    Positioned(
-                      bottom: _s(4, scale),
-                      right: _s(4, scale),
-                      child: Container(
-                        padding: EdgeInsets.all(_s(3, scale)),
-                        decoration: const BoxDecoration(
-                          color: Colors.black54,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.zoom_in,
-                          size: _s(14, scale),
-                          color: Colors.white,
-                        ),
+          (image != null && image != "")
+              ? GestureDetector(
+            onTap: () => showImage(image),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(_s(8, scale)),
+              child: Stack(
+                children: [
+                  Image.network(
+                    "https://hrms.attendify.ai/detectedImages/$image",
+                    height: _s(95, scale),
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
+                  Positioned(
+                    bottom: _s(4, scale),
+                    right: _s(4, scale),
+                    child: Container(
+                      padding: EdgeInsets.all(_s(3, scale)),
+                      decoration: const BoxDecoration(
+                        color: Colors.black54,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.zoom_in,
+                        size: _s(14, scale),
+                        color: Colors.white,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
+          )
+              : _imagePlaceholder(scale * 1.3),
         ],
+      ),
+    );
+  }
+
+  Widget _imagePlaceholder(double scale) {
+    return Container(
+      height: _s(75, scale),
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(_s(8, scale)),
+      ),
+      child: Icon(
+        Icons.person,
+        size: _s(20, scale),
+        color: Colors.grey,
       ),
     );
   }

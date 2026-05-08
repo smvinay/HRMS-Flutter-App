@@ -225,20 +225,38 @@ class _CheckInPageState extends State<CheckInPage> with TickerProviderStateMixin
           child: Row(
             children: [
               // avatar
-              ClipRRect(
-                borderRadius: BorderRadius.circular(_s(8, scale)),
-                child: Image.network(
-                  photo.isNotEmpty
-                      ? "https://hrms.attendify.ai/guest_imgs/$photo"
-                      : 'https://via.placeholder.com/100',
-                  width: _s(72, scale),
-                  height: _s(72, scale),
-                  fit: BoxFit.cover,
-                  errorBuilder: (c, e, s) => Container(
+              GestureDetector(
+                onTap: () {
+
+                  if (photo != null &&
+                      photo.toString().isNotEmpty) {
+
+                    showImage("https://hrms.attendify.ai/guest_imgs/$photo");
+
+                  }
+
+                },
+
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(_s(8, scale)),
+                  child: Image.network(
+                    photo.isNotEmpty
+                        ? "https://hrms.attendify.ai/guest_imgs/$photo"
+                        : 'https://via.placeholder.com/100',
+
                     width: _s(72, scale),
                     height: _s(72, scale),
-                    color: Colors.grey.shade200,
-                    child: Icon(Icons.person, size: _s(36, scale)),
+                    fit: BoxFit.cover,
+
+                    errorBuilder: (c, e, s) => Container(
+                      width: _s(72, scale),
+                      height: _s(72, scale),
+                      color: Colors.grey.shade200,
+                      child: Icon(
+                        Icons.person,
+                        size: _s(36, scale),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -336,6 +354,81 @@ class _CheckInPageState extends State<CheckInPage> with TickerProviderStateMixin
           ),
         ),
       ),
+    );
+  }
+
+  void showImage(String image) {
+    String url = image;
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.black87,
+      barrierDismissible: true, //  click outside to close
+      builder: (_) {
+        final size = MediaQuery
+            .of(context)
+            .size;
+
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 40,
+          ), //  space around dialog
+          child: Stack(
+            children: [
+
+              /// Image Container
+              Center(
+                child: GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  // child: Image.network(url, fit: BoxFit.contain),
+                  child: Container(
+                    width: size.width * 0.95, //  slightly reduced
+                    constraints: BoxConstraints(
+                      maxHeight: size.height * 0.85,
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.network(
+                        url,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              /// Close Button (Improved UI)
+              Positioned(
+                top: 10,
+                right: 10,
+                child: GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white, //  white background
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black26,
+                          blurRadius: 6,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.close,
+                      color: Colors.black,
+                      size: 22,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

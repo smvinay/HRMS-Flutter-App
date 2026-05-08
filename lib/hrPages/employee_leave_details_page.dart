@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../widgets/toast.dart';
+
 class EmployeeLeaveDetailsPage extends StatefulWidget {
   final String userId;
   final String empCode;
@@ -26,7 +28,7 @@ class _EmployeeLeaveDetailsPageState
     extends State<EmployeeLeaveDetailsPage> {
   List myLeaves = [];
   bool loading = true;
-  Set<int> expandedIndex = {};
+  Set<String> expandedIndex = <String>{};
   Map currentItem = {};
 
   @override
@@ -115,10 +117,10 @@ class _EmployeeLeaveDetailsPageState
                   ),
                   child: Row(
                     children: const [
-                      Expanded(flex: 3, child: Text("Type", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12))),
-                      Expanded(flex: 4, child: Text("Date", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12))),
+                      Expanded(flex: 4, child: Text("Type", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12))),
+                      Expanded(flex: 8, child: Text("Date", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12))),
                       Expanded(flex: 2, child: Text("Days", textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12))),
-                      Expanded(flex: 3, child: Text("Status", textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12))),
+                      Expanded(flex: 4, child: Text("Status", textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12))),
                     ],
                   ),
                 ),
@@ -147,7 +149,7 @@ class _EmployeeLeaveDetailsPageState
 
                         /// TYPE
                         Expanded(
-                          flex: 3,
+                          flex: 4,
                           child: Text(
                             item['type'] ?? "",
                             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
@@ -156,7 +158,7 @@ class _EmployeeLeaveDetailsPageState
 
                         /// DATE
                         Expanded(
-                          flex: 4,
+                          flex: 8,
                           child: Text(
                             "${formatDate(item['from_date'])} - ${formatDate(item['to_date'])}",
                             style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
@@ -175,7 +177,7 @@ class _EmployeeLeaveDetailsPageState
 
                         /// STATUS
                         Expanded(
-                          flex: 3,
+                          flex: 4,
                           child: Align(
                             alignment: Alignment.centerRight,
                             child: Container(
@@ -211,7 +213,7 @@ class _EmployeeLeaveDetailsPageState
     int index = 1;
     int status = int.tryParse(item['approved'].toString()) ?? 0;
 
-    DateTime applieDate = DateTime.parse(item['applied_date']);
+    DateTime appliedDate = DateTime.parse(item['applied_date']);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
@@ -236,59 +238,37 @@ class _EmployeeLeaveDetailsPageState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
 
-          /// TOP ROW
+          ///  MAIN ROW
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
 
+              /// AVATAR
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: Colors.grey.shade200,
+                backgroundImage: item['profile_thumbnail'] != null &&
+                    item['profile_thumbnail'].toString().isNotEmpty
+                    ? NetworkImage(
+                    "https://hrms.attendify.ai/photos/${item['profile_thumbnail']}")
+                    : null,
+                child: (item['profile_thumbnail'] == null ||
+                    item['profile_thumbnail'].toString().isEmpty)
+                    ? const Icon(Icons.person, size: 18, color: Colors.grey)
+                    : null,
+              ),
+
+              const SizedBox(width: 10),
+
+              /// RIGHT CONTENT
               Expanded(
-                flex: 6,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
 
+                    /// 🔹 ROW 1 → NAME + STATUS
                     Row(
                       children: [
-                        const Icon(Icons.access_time, size: 12, color: Colors.grey),
-                        const SizedBox(width: 4),
-                        Text(
-                          formatDate(applieDate.toString()),
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Colors.grey.shade500,
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 4),
-
-                    Text(
-                      item['type'] ?? "",
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                      ),
-                    ),
-
-                    const SizedBox(height: 6),
-                    /// PROFILE + USER NAME (NEW TOP SECTION)
-                    Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 16,
-                          backgroundColor: Colors.grey.shade200,
-                          backgroundImage: item['profile_thumbnail'] != null &&
-                              item['profile_thumbnail'].toString().isNotEmpty
-                              ? NetworkImage(
-                              "https://hrms.attendify.ai/photos/${item['profile_thumbnail']}")
-                              : null,
-                          child: (item['profile_thumbnail'] == null ||
-                              item['profile_thumbnail'].toString().isEmpty)
-                              ? const Icon(Icons.person, size: 18, color: Colors.grey)
-                              : null,
-                        ),
-                        const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             item['applied_username'] ?? "",
@@ -300,83 +280,102 @@ class _EmployeeLeaveDetailsPageState
                             ),
                           ),
                         ),
+                        _statusChip(status),
                       ],
                     ),
 
-                  ],
-                ),
-              ),
+                    const SizedBox(height: 3),
 
-              Expanded(
-                flex: 5,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
+                    /// 🔹 ROW 2 → LEAVE TYPE (LEFT) + DATE RANGE (RIGHT)
+                    Row(
+                      children: [
 
-
-                    _statusChip(status),
-                    const SizedBox(height: 6),
-                    RichText(
-                      textAlign: TextAlign.right,
-                      text: TextSpan(
-                        children: [
-                          TextSpan(
-                            text:
-                            "${formatDate(item['from_date'])} - ${formatDate(item['to_date'])} ",
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w400, //  more weight
-                              color: Colors.black87,
-                            ),
-                          ),
-                          TextSpan(
-                            text:
-                            "(${item['days']} ${double.tryParse(item['days'].toString()) == 1 ? 'day' : 'days'})",
+                        /// LEFT → LEAVE TYPE
+                        Expanded(
+                          flex: 3,
+                          child: Text(
+                            item['type'] ?? "",
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 11,
                               color: Colors.grey.shade600,
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        // const Icon(Icons.subdirectory_arrow_right, size: 14, color: Colors.grey),
-                        // const SizedBox(width: 6),
+                        ),
+
+                        const SizedBox(width: 8),
+
+                        /// RIGHT → DATE RANGE
                         Expanded(
-                          child: Text(
-                            item['reporting_to_name'] ?? "",
-                            maxLines: 1,
-                            textAlign: TextAlign.end,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 11),
+                          flex: 10,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+
+                              const Icon(
+                                Icons.calendar_today,
+                                size: 12,
+                                color: Colors.grey,
+                              ),
+
+                              const SizedBox(width: 4),
+
+                              Flexible(
+                                child: Text(
+                                  "${formatDate(item['from_date'])} → ${formatDate(item['to_date'])} "
+                                      "(${item['days']} ${double.tryParse(item['days'].toString()) == 1 ? 'day' : 'days'})",
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.end,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
-                    ),
-                    const SizedBox(height: 6),
-                    if (status == 0)
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          _actionBtn(
-                            icon: Icons.close,
-                            label: "Reject",
-                            color: Colors.red,
-                            onTap: () => rejectLeave(item['leave_id'].toString()),
-                          ),
-                          const SizedBox(width: 6),
-                          _actionBtn(
-                            icon: Icons.check,
-                            label: "Approve",
-                            color: Colors.green,
-                            onTap: () => approveLeave(item['leave_id'].toString()),
-                          ),
-                        ],
-                      ),
+                    )
                   ],
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 6),
+
+          /// 🔹 ROW 3 → APPLIED DATE + REPORTING
+          Row(
+            children: [
+
+              /// LEFT → Applied Date
+              Row(
+                children: [
+                  const Icon(Icons.access_time, size: 12, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Text(
+                    formatDate(appliedDate.toString()),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                ],
+              ),
+
+              /// RIGHT → Reporting Name (FULL RIGHT ALIGN)
+              Expanded(
+                child: Text(
+                  item['reporting_to_name'] ?? "",
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                  ),
                 ),
               ),
             ],
@@ -406,10 +405,10 @@ class _EmployeeLeaveDetailsPageState
                       child: Text(
                         item['reason'],
                         maxLines: overflow
-                            ? (expandedIndex.contains(index) ? null : 2)
+                            ? (expandedIndex.contains("reason_$index") ? null : 2)
                             : null,
                         overflow: overflow
-                            ? (expandedIndex.contains(index)
+                            ? (expandedIndex.contains("reason_$index")
                             ? TextOverflow.visible
                             : TextOverflow.ellipsis)
                             : TextOverflow.visible,
@@ -426,15 +425,15 @@ class _EmployeeLeaveDetailsPageState
                       GestureDetector(
                         onTap: () {
                           setState(() {
-                            if (expandedIndex.contains(index)) {
-                              expandedIndex.remove(index);
+                            if (expandedIndex.contains("reason_$index")) {
+                              expandedIndex.remove("reason_$index");
                             } else {
-                              expandedIndex.add(index);
+                              expandedIndex.add("reason_$index");
                             }
                           });
                         },
                         child: Icon(
-                          expandedIndex.contains(index)
+                          expandedIndex.contains("reason_$index")
                               ? Icons.expand_less
                               : Icons.expand_more,
                           size: 18,
@@ -446,6 +445,29 @@ class _EmployeeLeaveDetailsPageState
               },
             ),
           ],
+
+
+          const SizedBox(height: 8),
+          if (status == 0)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                _actionBtn(
+                  icon: Icons.close,
+                  label: "Reject",
+                  color: Colors.red,
+                  onTap: () => rejectLeave(item['leave_id'].toString()),
+                ),
+                const SizedBox(width: 6),
+                _actionBtn(
+                  icon: Icons.check,
+                  label: "Approve",
+                  color: Colors.green,
+                  onTap: () => approveLeave(item['leave_id'].toString()),
+                ),
+              ],
+            ),
+
 
           if (status == 2 && (item['reject_reason'] ?? "").toString().isNotEmpty) ...[
             const SizedBox(height: 10),
@@ -470,10 +492,10 @@ class _EmployeeLeaveDetailsPageState
                       child: Text(
                         item['reject_reason'],
                         maxLines: overflow
-                            ? (expandedIndex.contains(index) ? null : 2)
+                            ? (expandedIndex.contains("reject_$index") ? null : 2)
                             : null,
                         overflow: overflow
-                            ? (expandedIndex.contains(index)
+                            ? (expandedIndex.contains("reject_$index")
                             ? TextOverflow.visible
                             : TextOverflow.ellipsis)
                             : TextOverflow.visible,
@@ -490,15 +512,15 @@ class _EmployeeLeaveDetailsPageState
                       GestureDetector(
                         onTap: () {
                           setState(() {
-                            if (expandedIndex.contains(index)) {
-                              expandedIndex.remove(index);
+                            if (expandedIndex.contains("reject_$index")) {
+                              expandedIndex.remove("reject_$index");
                             } else {
-                              expandedIndex.add(index);
+                              expandedIndex.add("reject_$index");
                             }
                           });
                         },
                         child: Icon(
-                          expandedIndex.contains(index)
+                          expandedIndex.contains("reject_$index")
                               ? Icons.expand_less
                               : Icons.expand_more,
                           size: 18,
@@ -595,6 +617,8 @@ class _EmployeeLeaveDetailsPageState
         return Colors.green;
       case 2:
         return Colors.red;
+      case 3:
+        return Colors.grey;
       default:
         return Colors.orange;
     }
@@ -606,6 +630,8 @@ class _EmployeeLeaveDetailsPageState
         return "Approved";
       case 2:
         return "Rejected";
+      case 3:
+        return "Withdrawn";
       default:
         return "Pending";
     }
@@ -671,15 +697,10 @@ class _EmployeeLeaveDetailsPageState
         fetchHistory();
         Navigator.pop(context, true);
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Leave Approved")),
-        );
+        AppToast.show("Leave Approved");
+
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(data['message'] ?? "Failed"),
-          ),
-        );
+        AppToast.show(data['message'] ?? "Failed", isError: true);
       }
     } catch (e) {
       debugPrint(e.toString());
@@ -776,16 +797,11 @@ class _EmployeeLeaveDetailsPageState
 
         fetchHistory();
         Navigator.pop(context, true);
+        AppToast.show("Leave Rejected");
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Leave Rejected")),
-        );
       }else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(data['message'] ?? "Failed"),
-          ),
-        );
+        AppToast.show(data['message'] ?? "Failed", isError: true);
+
       }
     } catch (e) {
       debugPrint(e.toString());

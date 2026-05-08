@@ -14,6 +14,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:another_flushbar/flushbar.dart';
 import 'package:http_parser/http_parser.dart';
 
+import '../widgets/toast.dart';
+
 
 class SelfAttendanceCamera extends StatefulWidget {
   final String? attStatus;
@@ -124,8 +126,7 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
     );
 
     if (pickedImage != null) {
-      _showLoading(); //  SHOW IMMEDIATELY (FIRST LINE)
-
+      _showLoading();
       File imageFile = File(pickedImage.path);
 
       try {
@@ -174,76 +175,268 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
     return File(result!.path);
   }
 
-  Future<File> _addWatermark(File imageFile, double lat, double long ,String address,) async {
+  List<String> splitByLength(String text, int maxCharsPerLine) {
+    List<String> lines = [];
+
+    for (int i = 0; i < text.length; i += maxCharsPerLine) {
+      int end = (i + maxCharsPerLine < text.length)
+          ? i + maxCharsPerLine
+          : text.length;
+
+      lines.add(text.substring(i, end));
+    }
+
+    return lines;
+  }
+
+//   Future<File> _addWatermark(File imageFile, double lat, double long ,String address,) async {
+//     final bytes = await imageFile.readAsBytes();
+//     img.Image original = img.decodeImage(bytes)!;
+//
+// //  STEP 1: FORCE 2:3 RATIO (PORTRAIT)
+//     double targetRatio = 2 / 3; // width : height
+//
+//     int cropWidth = original.width;
+//     int cropHeight = (cropWidth / targetRatio).toInt();
+//
+// // If height smaller → adjust width instead
+//     if (cropHeight > original.height) {
+//       cropHeight = original.height;
+//       cropWidth = (cropHeight * targetRatio).toInt();
+//     }
+//
+// // Center crop
+//     int xOffset = (original.width - cropWidth) ~/ 2;
+//     int yOffset = (original.height - cropHeight) ~/ 2;
+//
+//     original = img.copyCrop(
+//       original,
+//       x: xOffset,
+//       y: yOffset,
+//       width: cropWidth,
+//       height: cropHeight,
+//     );
+//
+// // 🔥 STEP 2: RESIZE (MAX HEIGHT = 1920)
+//     if (original.height > 1920) {
+//       int newHeight = 1920;
+//       int newWidth = (original.width * (1920 / original.height)).toInt();
+//
+//       original = img.copyResize(
+//         original,
+//         width: newWidth,
+//         height: newHeight,
+//         interpolation: img.Interpolation.average,
+//       );
+//     }
+//
+//     final now = DateTime.now();
+//     final date = DateFormat('dd/MM/yyyy').format(now);
+//     final time = DateFormat('HH:mm:ss').format(now);
+//
+//
+// //  Approximate width (since measureText doesn't exist)
+//     final font = img.arial48;
+//     final padding = 20;
+//     final lineSpacing = 10;
+//
+//     List<String> parts = address.split(',');
+//
+// // Clean trim
+//     parts = parts.map((e) => e.trim()).toList();
+//
+//     String line1 = '';
+//     String line2 = '';
+//
+//     if (parts.length >= 4) {
+//       //  Last 3 parts → line2
+//       line2 = parts.sublist(parts.length - 4).join(', ');
+//
+//       //  Remaining → line1
+//       line1 = parts.sublist(0, parts.length - 4).join(', ');
+//     } else {
+//       // fallback
+//       line1 = address;
+//     }
+//
+// // Text
+//     final text1 = '$date  $time';
+//     final text2 = 'Lat ${lat.toStringAsFixed(5)}  Lon ${long.toStringAsFixed(5)}';
+//     final text3 = line1;
+//     final text4 = line2;
+//
+// //  Smart width (based on image, not text)
+//     int boxWidth = (original.width * 0.95).toInt(); // almost full width
+//     int boxHeight =
+//         (font.lineHeight * 4) + (lineSpacing * 3) + padding * 2;
+//
+// // Position (bottom-left)
+//     int x = 20;
+//     int y = original.height - boxHeight - 20;
+//
+// // Background (only needed area)
+//     img.fillRect(
+//       original,
+//       x1: x,
+//       y1: y,
+//       x2: x + boxWidth,
+//       y2: y + boxHeight,
+//       color: img.ColorRgba8(0, 0, 0, 160),
+//     );
+//
+// // Draw text
+//     img.drawString(
+//       original,
+//       text1,
+//       font: font,
+//       x: x + padding,
+//       y: y + padding,
+//       color: img.ColorRgb8(255, 255, 255),
+//     );
+//
+//     img.drawString(
+//       original,
+//       text2,
+//       font: font,
+//       x: x + padding,
+//       y: y + padding + font.lineHeight + lineSpacing,
+//       color: img.ColorRgb8(255, 255, 255),
+//     );
+//
+//     img.drawString(
+//       original,
+//       text3,
+//       font: font,
+//       x: x + padding,
+//       y: y + padding + (font.lineHeight * 2) + (lineSpacing * 2),
+//       color: img.ColorRgb8(255, 255, 255),
+//     );
+//
+//     img.drawString(
+//       original,
+//       text4,
+//       font: font,
+//       x: x + padding,
+//       y: y + padding + (font.lineHeight * 3) + (lineSpacing * 3),
+//       color: img.ColorRgb8(255, 255, 255),
+//     );
+//     // =========================
+//     //  STEP 3: SAVE
+//     // =========================
+//     final tempDir = await getTemporaryDirectory();
+//     final path = '${tempDir.path}/watermarked_${DateTime.now().millisecondsSinceEpoch}.jpg';
+//
+//     File finalImage = File(path)
+//       ..writeAsBytesSync(img.encodeJpg(original, quality: 85));
+//
+//     return finalImage;
+//   }
+
+  Future<File> _addWatermark(
+      File imageFile,
+      double lat,
+      double long,
+      String address,
+      ) async {
     final bytes = await imageFile.readAsBytes();
     img.Image original = img.decodeImage(bytes)!;
 
-    double targetRatio = 9 / 11;
+    // =========================
+    // STEP 1: FORCE 2:3 RATIO
+    // =========================
+    double targetRatio = 2 / 3;
 
-    int newWidth = original.width;
-    int newHeight = original.height;
+    int cropWidth = original.width;
+    int cropHeight = (cropWidth / targetRatio).toInt();
 
-    // if (newHeight > original.height) {
-    //   newHeight = original.height;
-    //   newWidth = (newHeight * targetRatio).toInt();
-    // }
+    if (cropHeight > original.height) {
+      cropHeight = original.height;
+      cropWidth = (cropHeight * targetRatio).toInt();
+    }
 
-    int xOffset = (original.width - newWidth) ~/ 2;
-    int yOffset = (original.height - newHeight) ~/ 2;
+    int xOffset = (original.width - cropWidth) ~/ 2;
+    int yOffset = (original.height - cropHeight) ~/ 2;
 
     original = img.copyCrop(
       original,
       x: xOffset,
       y: yOffset,
-      width: newWidth,
-      height: newHeight,
+      width: cropWidth,
+      height: cropHeight,
     );
 
+    // =========================
+    // STEP 2: RESIZE (MAX 1920 HEIGHT)
+    // =========================
+    if (original.height > 1920) {
+      int newHeight = 1920;
+      int newWidth = (original.width * (1920 / original.height)).toInt();
+
+      original = img.copyResize(
+        original,
+        width: newWidth,
+        height: newHeight,
+        interpolation: img.Interpolation.average,
+      );
+    }
+
+    // =========================
+    // STEP 3: DATE & TIME
+    // =========================
     final now = DateTime.now();
     final date = DateFormat('dd/MM/yyyy').format(now);
     final time = DateFormat('HH:mm:ss').format(now);
 
+    final text1 = '$date  $time';
+    final text2 =
+        'Lat ${lat.toStringAsFixed(5)}  Lon ${long.toStringAsFixed(5)}';
 
-//  Approximate width (since measureText doesn't exist)
-    final font = img.arial48;
-    final padding = 20;
-    final lineSpacing = 10;
+    // =========================
+    // STEP 4: CHAR-BASED WRAP
+    // =========================
+    List<String> splitByLength(String text, int maxCharsPerLine) {
+      List<String> lines = [];
 
-    List<String> parts = address.split(',');
+      for (int i = 0; i < text.length; i += maxCharsPerLine) {
+        int end = (i + maxCharsPerLine < text.length)
+            ? i + maxCharsPerLine
+            : text.length;
 
-// Clean trim
-    parts = parts.map((e) => e.trim()).toList();
+        lines.add(text.substring(i, end));
+      }
 
-    String line1 = '';
-    String line2 = '';
-
-    if (parts.length >= 4) {
-      //  Last 3 parts → line2
-      line2 = parts.sublist(parts.length - 4).join(', ');
-
-      //  Remaining → line1
-      line1 = parts.sublist(0, parts.length - 4).join(', ');
-    } else {
-      // fallback
-      line1 = address;
+      return lines;
     }
 
-// Text
-    final text1 = '$date  $time';
-    final text2 = 'Lat ${lat.toStringAsFixed(5)}  Lon ${long.toStringAsFixed(5)}';
-    final text3 = line1;
-    final text4 = line2;
+    List<String> addressLines = splitByLength(address, 105);
 
-//  Smart width (based on image, not text)
-    int boxWidth = (original.width * 0.95).toInt(); // almost full width
+    // =========================
+    // STEP 5: TEXT SETTINGS
+    // =========================
+    final font = img.arial24;
+    final padding = 18;
+    final lineSpacing = 8;
+
+    List<String> allLines = [
+      text1,
+      text2,
+      ...addressLines,
+    ];
+
+    int totalLines = allLines.length;
+
+    int boxWidth = (original.width * 0.95).toInt();
     int boxHeight =
-        (font.lineHeight * 4) + (lineSpacing * 3) + padding * 2;
+        (font.lineHeight * totalLines) +
+            (lineSpacing * (totalLines - 1)) +
+            padding * 2;
 
-// Position (bottom-left)
     int x = 20;
     int y = original.height - boxHeight - 20;
 
-// Background (only needed area)
+    // =========================
+    // STEP 6: BACKGROUND BOX
+    // =========================
     img.fillRect(
       original,
       x1: x,
@@ -253,54 +446,34 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
       color: img.ColorRgba8(0, 0, 0, 160),
     );
 
-// Draw text
-    img.drawString(
-      original,
-      text1,
-      font: font,
-      x: x + padding,
-      y: y + padding,
-      color: img.ColorRgb8(255, 255, 255),
-    );
-
-    img.drawString(
-      original,
-      text2,
-      font: font,
-      x: x + padding,
-      y: y + padding + font.lineHeight + lineSpacing,
-      color: img.ColorRgb8(255, 255, 255),
-    );
-
-    img.drawString(
-      original,
-      text3,
-      font: font,
-      x: x + padding,
-      y: y + padding + (font.lineHeight * 2) + (lineSpacing * 2),
-      color: img.ColorRgb8(255, 255, 255),
-    );
-
-    img.drawString(
-      original,
-      text4,
-      font: font,
-      x: x + padding,
-      y: y + padding + (font.lineHeight * 3) + (lineSpacing * 3),
-      color: img.ColorRgb8(255, 255, 255),
-    );
     // =========================
-    //  STEP 3: SAVE
+    // STEP 7: DRAW TEXT
+    // =========================
+    for (int i = 0; i < allLines.length; i++) {
+      img.drawString(
+        original,
+        allLines[i],
+        font: font,
+        x: x + padding,
+        y: y + padding + (i * (font.lineHeight + lineSpacing)),
+        color: img.ColorRgb8(255, 255, 255),
+      );
+    }
+
+    // =========================
+    // STEP 8: SAVE IMAGE
     // =========================
     final tempDir = await getTemporaryDirectory();
-    final path = '${tempDir.path}/watermarked_${DateTime.now().millisecondsSinceEpoch}.jpg';
+    final path =
+        '${tempDir.path}/watermarked_${DateTime.now().millisecondsSinceEpoch}.jpg';
 
     File finalImage = File(path)
-      ..writeAsBytesSync(img.encodeJpg(original, quality: 95));
+      ..writeAsBytesSync(
+        img.encodeJpg(original, quality: 85), // optimized
+      );
 
     return finalImage;
   }
-
 
   Future<String> getAddressFromGeoapify(double lat, double lng) async {
     const String apiKey = "d48f66b9edc44c9c8ceb585d304c7360";
@@ -441,12 +614,7 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
 
             if (mounted) {
               _hideLoading();
-
-              _showflashbar(
-                "Attendance marked successfully",
-                Colors.green.shade300,
-              );
-
+              AppToast.show("Attendance marked successfully");
               widget.onSuccess?.call();
             }
 
@@ -456,12 +624,9 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
 
           _hideLoading();
 
-          Future.delayed(const Duration(milliseconds: 200), () {
+          Future.delayed(const Duration(milliseconds: 300), () {
             if (mounted) {
-              _showflashbar(
-                "Employee face not recognized, please retry again.",
-                Colors.red.shade300,
-              );
+              AppToast.show("Face not detected. Please try again.", isError: true);
             }
           });
 
@@ -469,12 +634,9 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
 
           _hideLoading();
 
-          Future.delayed(const Duration(milliseconds: 200), () {
+          Future.delayed(const Duration(milliseconds: 300), () {
             if (mounted) {
-              _showflashbar(
-                "Employee face not matched, please retry again.",
-                Colors.red.shade300,
-              );
+              AppToast.show("Face did not match. Please try again.", isError: true);
             }
           });
 
@@ -484,10 +646,7 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
 
           Future.delayed(const Duration(milliseconds: 200), () {
             if (mounted) {
-              _showflashbar(
-                "Face not matching, please retry again.",
-                Colors.red.shade300,
-              );
+              AppToast.show("Something went wrong. Please try again later.", isError: true);
             }
           });
         }
@@ -497,21 +656,15 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
 
       } else {
         _hideLoading();
-        _showflashbar(
-          "Upload failed. Status: ${response.statusCode}",
-          Colors.red.shade300,
-        );
+        AppToast.show("Upload failed. Status: ${response.statusCode}", isError: true);
+
       }
 
     } catch (e) {
 
       debugPrint("UPLOAD ERROR: $e");
       _hideLoading();
-      _showflashbar(
-        "Upload failed. Please try again.",
-        Colors.red.shade300,
-      );
-
+      AppToast.show("Upload failed. Please try again.", isError: true);
 
     } finally {
       _isUploading = false;
@@ -1093,48 +1246,5 @@ class SelfAttendanceCameraState extends State<SelfAttendanceCamera> {
 
     _isLoaderShowing = false;
   }
-
-  void _showflashbar(String message, Color color) {
-    Flushbar(
-      messageText: Row(
-        children: [
-          Icon(
-            Icons.info_outline,
-            color: Colors.white.withOpacity(0.9),
-            size: 20,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              message,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
-      ),
-      duration: const Duration(seconds: 2),
-      backgroundColor: color.withOpacity(0.9),
-      borderRadius: BorderRadius.circular(16),
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      flushbarPosition: FlushbarPosition.TOP,
-      boxShadows: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.1),
-          blurRadius: 10,
-          offset: const Offset(0, 4),
-        ),
-      ],
-      animationDuration: const Duration(milliseconds: 400),
-      forwardAnimationCurve: Curves.easeOut,
-      reverseAnimationCurve: Curves.easeIn,
-    ).show(context);
-  }
-
-
 
 }

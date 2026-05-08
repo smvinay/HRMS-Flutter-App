@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/adapters.dart';
-import 'package:hrms_attendify_app/TeamLeaves.dart';
+import 'package:hrms_attendify_app/hrPages/TeamLeaves.dart';
 import 'package:hrms_attendify_app/splash_screen.dart';
 import 'employeePages/ApplyLeavePage.dart';
 import 'employeePages/AttendanceCal.dart';
 import 'employeePages/profile_page.dart';
 import 'hrPages/HrVisitorsPage.dart';
 import 'hrPages/MyTeamPage.dart';
-import 'hrPages/hrEmpAtt.dart';
+import 'hrPages/hrEmpAttList.dart';
 import 'hrPages/hr_dashboard.dart';
 import 'employeePages/home_page.dart';
 import 'login_page.dart';

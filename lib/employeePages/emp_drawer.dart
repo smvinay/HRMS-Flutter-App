@@ -108,7 +108,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 _buildDrawerItem(Icons.calendar_month, "Attendance", '/emp_attendance_cal', () {
                   Navigator.pushNamed(context, '/emp_attendance_cal');
                 }),
-                _buildDrawerItem(Icons.calendar_today , "Leave", '/emp_leave', () {
+                _buildDrawerItem(Icons.calendar_today , "Leaves", '/emp_leave', () {
                   Navigator.pushNamed(context, '/emp_leave');
                 }),
                 _buildDrawerItem(Icons.person, "Profile", '/profile', () {
@@ -302,7 +302,11 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 await box.clear();
 
                 Navigator.pop(context);
-                Navigator.pushReplacementNamed(context, '/login');
+                Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/login',
+                      (route) => false,
+                );
               },
             ),
           ],

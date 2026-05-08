@@ -8,8 +8,9 @@ import '../global_state.dart';
 class HrDrawer extends StatefulWidget {
   @override
   final int pendingCount;
+  final String currentRoute;
 
-  HrDrawer({this.pendingCount = 0});
+  HrDrawer({this.pendingCount = 0 ,  required this.currentRoute,});
   _HrDrawerState createState() => _HrDrawerState();
 }
 
@@ -83,7 +84,7 @@ class _HrDrawerState extends State<HrDrawer> {
               padding: EdgeInsets.zero,
               children: [
                 _item(context, Icons.dashboard, "Home", route: "/HrDashboard"),
-                _item(context, Icons.groups, "Employees", route: "/myTeam"),
+                _item(context, Icons.groups, "Employee", route: "/myTeam"),
                 _item(context, Icons.access_time, "Attendance", route: "/hr_empatt"),
                 _itemWithBadge(
                   context,
@@ -158,7 +159,11 @@ class _HrDrawerState extends State<HrDrawer> {
 
                 Navigator.pop(context);
 
-                Navigator.pushReplacementNamed(context, '/login');
+                Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/login',
+                      (route) => false,
+                );
               },
             ),
           ],
@@ -190,83 +195,137 @@ class _HrDrawerState extends State<HrDrawer> {
     );
   }
 
-  /// Drawer Item
   Widget _item(
-    BuildContext context,
-    IconData icon,
-    String title, {
-    String? route,
-    VoidCallback? onTap,
-  }) {
-    return ListTile(
-      leading: Icon(icon),
-      title: Text(title),
-      onTap: () {
-        if (onTap != null) {
-          onTap();
-        } else if (route != null) {
+      BuildContext context,
+      IconData icon,
+      String title, {
+        String? route,
+        VoidCallback? onTap,
+      }) {
+    bool isActive = widget.currentRoute == title;
+
+    return Container(
+      color: isActive
+          ? const Color(0xFF0557a2).withOpacity(0.1)
+          : Colors.transparent,
+      child: ListTile(
+        leading: Icon(
+          icon,
+          color: isActive
+              ? const Color(0xFF0557a2)
+              : Colors.black87,
+        ),
+        title: Text(
+          title,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight:
+            isActive ? FontWeight.bold : FontWeight.normal,
+            color: isActive
+                ? const Color(0xFF0557a2)
+                : Colors.black,
+          ),
+        ),
+        onTap: () {
+          if (isActive) {
+            Navigator.pop(context); // just close drawer
+            return;
+          }
+
           Navigator.pop(context);
+
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            Navigator.pushNamed(context, route);
+            if (onTap != null) {
+              onTap();
+            } else if (route != null) {
+              Navigator.pushNamed(context, route);
+            }
           });
-          // Navigator.pushNamed(context, route);
-        }
-      },
+        },
+      ),
     );
   }
-
   Widget _itemWithBadge(
       BuildContext context,
       IconData icon,
       String title, {
         String? route,
         VoidCallback? onTap,
-        int count = 0, //  ADD THIS
+        int count = 0,
       }) {
-    return ListTile(
-      leading: Icon(icon),
-      title: Row(
-        children: [
-          Expanded(child: Text(title)),
+    bool isActive = widget.currentRoute == title;
 
-          ///  PREMIUM BADGE
-          ValueListenableBuilder<int>(
-            valueListenable: pendingLeaveNotifier,
-            builder: (context, count, _) {
-              if (count <= 0) return const SizedBox();
+    return Container(
+      color: isActive
+          ? const Color(0xFF0557A2).withOpacity(0.1)
+          : Colors.transparent,
+      child: ListTile(
+        leading: Icon(
+          icon,
+          color: isActive
+              ? const Color(0xFF0557A2)
+              : Colors.black87,
+        ),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight:
+                  isActive ? FontWeight.bold : FontWeight.normal,
+                  color: isActive
+                      ? const Color(0xFF0557A2)
+                      : Colors.black,
+                ),
+              ),
+            ),
 
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0557A2).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: const Color(0xFF0557A2).withOpacity(0.3),
+            ValueListenableBuilder<int>(
+              valueListenable: pendingLeaveNotifier,
+              builder: (context, value, _) {
+                if (value <= 0) return const SizedBox();
+
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0557A2).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: const Color(0xFF0557A2).withOpacity(0.3),
+                    ),
                   ),
-                ),
-                child: Text(
-                  "${count > 99 ? '99+' : count}",
-                  style: const TextStyle(
-                    color: Color(0xFF0557A2),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
+                  child: Text(
+                    "${value > 99 ? '99+' : value}",
+                    style: const TextStyle(
+                      color: Color(0xFF0557A2),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-              );
-            },
-          )
-        ],
-      ),
-      onTap: () {
-        if (onTap != null) {
-          onTap();
-        } else if (route != null) {
+                );
+              },
+            ),
+          ],
+        ),
+        onTap: () {
+          if (isActive) {
+            Navigator.pop(context);
+            return;
+          }
+
           Navigator.pop(context);
+
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            Navigator.pushNamed(context, route);
+            if (onTap != null) {
+              onTap();
+            } else if (route != null) {
+              Navigator.pushNamed(context, route);
+            }
           });
-        }
-      },
+        },
+      ),
     );
   }
 }

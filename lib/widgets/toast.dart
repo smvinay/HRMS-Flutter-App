@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import '../main.dart';
 import 'AnimatedToast.dart';
 
@@ -8,14 +7,15 @@ class AppToast {
 
   static void show(String message, {bool isError = false}) {
     final context = navigatorKey.currentContext;
+    final overlayState = navigatorKey.currentState?.overlay;
 
-    if (context == null) return;
-
-    if (_overlayEntry != null) {
-      _overlayEntry!.remove();
+    if (context == null || overlayState == null) {
+      debugPrint("Toast context or overlay is null");
+      return;
     }
 
-    final overlay = Overlay.of(context);
+    _overlayEntry?.remove();
+    _overlayEntry = null;
 
     _overlayEntry = OverlayEntry(
       builder: (context) {
@@ -30,6 +30,6 @@ class AppToast {
       },
     );
 
-    overlay.insert(_overlayEntry!);
+    overlayState.insert(_overlayEntry!);
   }
 }

@@ -129,27 +129,35 @@ class _HrVisitorsPageState extends State<HrVisitorsPage>
   }
 
   String getVisitorTime(Map v, String status) {
-    if (status == "Captured") {
-      return v['check_in_time'] ?? "";
+
+    String s = status.toString().trim().toUpperCase();
+
+    print('status  $s');
+    print('v  $v');
+
+    if (s == "CAPTURED") {
+      return (v['check_in_time'] ?? "").toString();
     }
 
-    if (status == "Lobby") {
-      return v['form_submit_time'] ?? v['check_in_time'] ?? "";
+    if (s == "LOBBY") {
+      return (v['form_submit_time'] ??
+          v['check_in_time'] ??
+          "").toString();
     }
 
-    if (status == "Check-In") {
-      return v['user_approve_time'] ??
+    if (s == "CHECK-IN" || s == "CHECK IN") {
+      return (v['user_approve_time']  ??
           v['form_submit_time'] ??
           v['check_in_time'] ??
-          "";
+          "").toString();
     }
 
-    if (status == "Check-Out") {
-      return v['last_check_in'] ??
+    if (s == "CHECK-OUT" || s == "CHECK OUT") {
+      return (v['last_check_in'] ??
           v['user_approve_time'] ??
           v['form_submit_time'] ??
           v['check_in_time'] ??
-          "";
+          "").toString();
     }
 
     return "";
@@ -220,28 +228,6 @@ class _HrVisitorsPageState extends State<HrVisitorsPage>
 
         ],
       ),
-    );
-  }
-
-  /// SECTION
-  Widget section(String title, List list, String status, Color color) {
-
-    if (list.isEmpty) return const SizedBox();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Text(
-            title,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-        ...list.map((v) => visitorCard(v, status, color)).toList(),
-      ],
     );
   }
 
@@ -336,8 +322,18 @@ class _HrVisitorsPageState extends State<HrVisitorsPage>
     }
 
     return Scaffold(
-      appBar: const HrHeader(),
-      drawer: HrDrawer(),
+      appBar: AppBar(
+        title: Text(
+          'Visitors',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+          ),
+        ),
+        backgroundColor: const Color(0xFF0557a2),
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      drawer: HrDrawer(currentRoute: 'Visitors',),
       bottomNavigationBar: const HrFooter(selectedIndex: 2),
 
       body: Column(

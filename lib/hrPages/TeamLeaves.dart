@@ -4,7 +4,9 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'employee_leave_details_page.dart';
-import 'global_state.dart';
+import '../global_state.dart';
+import 'hr_drawer.dart';
+import 'hr_footer.dart';
 
 class TeamLeaves extends StatefulWidget {
   const TeamLeaves({Key? key}) : super(key: key);
@@ -29,13 +31,14 @@ class _TeamLeavesState extends State<TeamLeaves> {
     "All": "All",
   };
   int pendingCount = 0;
-  Set<int> expandedIndex = {};
+  Set<String> expandedIndex = <String>{};
 
   Map<String, String> statusMap = {
     "All": "All",
     "0": "Pending",
     "1": "Approved",
-    "2": "Rejected"
+    "2": "Rejected",
+    "3": "Withdrawn"
   };
 
   TextEditingController searchController = TextEditingController();
@@ -338,223 +341,148 @@ class _TeamLeavesState extends State<TeamLeaves> {
 
   double _s(double size, double scale) => size * scale;
 
-  Widget slidingSegment(double scale) {
-    return Container(
-      height: _s(40, scale),
-      padding: EdgeInsets.all(_s(4, scale)),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade200,
-        borderRadius: BorderRadius.circular(_s(20, scale)),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          double width = constraints.maxWidth / 4;
-
-          return Stack(
-            children: [
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 250),
-                left: filter == "all"
-                    ? 0
-                    : filter == "approved"
-                    ? width
-                    : filter == "rejected"
-                    ? width * 2
-                    : width * 3,
-                top: 0,
-                bottom: 0,
-                child: Container(
-                  width: width,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-              ),
-              Row(
-                children: [
-                  _segItem("All", "all", scale),
-                  _segItem("Approved", "approved", scale),
-                  _segItem("Rejected", "rejected", scale),
-                  _segItem("Pending", "pending", scale),
-                ],
-              )
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _segItem(String title, String value, double scale) {
-    bool active = filter == value;
-
-    return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          setState(() => filter = value);
-          applyFilter();
-        },
-        child: Center(
-          child: Text(
-            title,
-            style: TextStyle(
-              fontSize: _s(12, scale),
-              fontWeight: FontWeight.w600,
-              color: active ? Colors.black : Colors.grey,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-
   Widget expandableSearch(double scale) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
-      width: isSearchExpanded ? _s(250, scale) : _s(10, scale),
+      width: _s(210, scale),
       height: _s(40, scale),
       decoration: BoxDecoration(
         color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(_s(10, scale)),
-        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(_s(20, scale)),
       ),
       child: Row(
         children: [
-          /// SEARCH ICON
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () {
-              setState(() => isSearchExpanded = true);
 
-              ///  AUTO FOCUS AFTER BUILD
-              Future.delayed(const Duration(milliseconds: 200), () {
-                FocusScope.of(context).requestFocus(searchFocus);
-              });
-            },
+          /// SEARCH ICON
+          Padding(
+            padding: EdgeInsets.only(
+              left: _s(10, scale),
+            ),
+            child: Icon(
+              Icons.search,
+              size: _s(18, scale),
+              color: Colors.grey.shade600,
+            ),
           ),
 
-          /// TEXT FIELD (ONLY WHEN EXPANDED)
-          if (isSearchExpanded)
-            Expanded(
-              child: TextField(
-                controller: searchController,
-                focusNode: searchFocus,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  hintText: "Search...",
-                  border: InputBorder.none,
-                ),
-                onChanged: (val) {
-                  search = val;
-                  applyFilter();
-                },
-              ),
-            ),
+          SizedBox(width: _s(6, scale)),
 
-          /// CLOSE ICON
-          if (isSearchExpanded)
-            IconButton(
-              icon: const Icon(Icons.close),
-              onPressed: () {
+          /// SEARCH FIELD
+          Expanded(
+            child: TextField(
+              controller: searchController,
+              focusNode: searchFocus,
+              maxLength: 150,
+              buildCounter: (
+                  context, {
+                    required currentLength,
+                    required isFocused,
+                    maxLength,
+                  }) {
+                return null;
+              },
+              style: TextStyle(
+                fontSize: _s(12, scale),
+              ),
+              decoration: InputDecoration(
+                hintText: "Search",
+                hintStyle: TextStyle(
+                  fontSize: _s(11, scale),
+                  color: Colors.grey,
+                ),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(
+                  vertical: _s(10, scale),
+                ),
+                suffixIcon: search.isNotEmpty
+                    ? IconButton(
+                  icon: Icon(
+                    Icons.close,
+                    size: _s(16, scale),
+                  ),
+                  onPressed: () {
+                    searchController.clear();
+                    searchFocus.unfocus();
+
+                    setState(() {
+                      search = "";
+                    });
+
+                    applyFilter();
+                  },
+                )
+                    : null,
+              ),
+              onChanged: (val) {
                 setState(() {
-                  isSearchExpanded = false;
-                  search = "";
-                  searchController.clear();
+                  search = val;
                 });
 
-                FocusScope.of(context).unfocus();
                 applyFilter();
               },
-            )
+            ),
+          ),
         ],
       ),
     );
   }
 
-
   Widget leaveCard(Map item, int index) {
     int status = int.tryParse(item['approved'].toString()) ?? 0;
+    DateTime appliedDate = DateTime.parse(item['applied_date']);
 
-    DateTime applieDate = DateTime.parse(item['applied_date']);
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: Colors.white,
-        // color: getStatusColor(status).withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.grey.withOpacity(0.2),
-        ),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey.withOpacity(0.15)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
+
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
 
-          /// TOP ROW
+          ///  MAIN ROW
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
 
+              /// AVATAR
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: Colors.grey.shade200,
+                backgroundImage: item['profile_thumbnail'] != null &&
+                    item['profile_thumbnail'].toString().isNotEmpty
+                    ? NetworkImage(
+                    "https://hrms.attendify.ai/photos/${item['profile_thumbnail']}")
+                    : null,
+                child: (item['profile_thumbnail'] == null ||
+                    item['profile_thumbnail'].toString().isEmpty)
+                    ? const Icon(Icons.person, size: 18, color: Colors.grey)
+                    : null,
+              ),
+
+              const SizedBox(width: 10),
+
+              /// RIGHT CONTENT
               Expanded(
-                flex: 6,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
 
+                    /// 🔹 ROW 1 → NAME + STATUS
                     Row(
                       children: [
-                        const Icon(Icons.access_time, size: 12, color: Colors.grey),
-                        const SizedBox(width: 4),
-                        Text(
-                          formatDate(applieDate.toString()),
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Colors.grey.shade500,
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 4),
-
-                    Text(
-                      item['type'] ?? "",
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                      ),
-                    ),
-
-                    const SizedBox(height: 6),
-                    /// PROFILE + USER NAME (NEW TOP SECTION)
-                    Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 16,
-                          backgroundColor: Colors.grey.shade200,
-                          backgroundImage: item['profile_thumbnail'] != null &&
-                              item['profile_thumbnail'].toString().isNotEmpty
-                              ? NetworkImage(
-                              "https://hrms.attendify.ai/photos/${item['profile_thumbnail']}")
-                              : null,
-                          child: (item['profile_thumbnail'] == null ||
-                              item['profile_thumbnail'].toString().isEmpty)
-                              ? const Icon(Icons.person, size: 18, color: Colors.grey)
-                              : null,
-                        ),
-                        const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             item['applied_username'] ?? "",
@@ -566,89 +494,108 @@ class _TeamLeavesState extends State<TeamLeaves> {
                             ),
                           ),
                         ),
+                        _statusChip(status),
                       ],
                     ),
 
-                  ],
-                ),
-              ),
+                    const SizedBox(height: 3),
 
-              Expanded(
-                flex: 5,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
+                    /// 🔹 ROW 2 → LEAVE TYPE (LEFT) + DATE RANGE (RIGHT)
+                    Row(
+                      children: [
 
-
-                    _statusChip(status),
-                    const SizedBox(height: 6),
-                    RichText(
-                      textAlign: TextAlign.right,
-                      text: TextSpan(
-                        children: [
-                          TextSpan(
-                            text:
-                            "${formatDate(item['from_date'])} - ${formatDate(item['to_date'])} ",
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w400, //  more weight
-                              color: Colors.black87,
-                            ),
-                          ),
-                          TextSpan(
-                            text:
-                            "(${item['days']} ${double.tryParse(item['days'].toString()) == 1 ? 'day' : 'days'})",
+                        /// LEFT → LEAVE TYPE
+                        Expanded(
+                          flex: 3,
+                          child: Text(
+                            item['type'] ?? "",
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 11,
                               color: Colors.grey.shade600,
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        // const Icon(Icons.subdirectory_arrow_right, size: 14, color: Colors.grey),
-                        // const SizedBox(width: 6),
+                        ),
+
+                        const SizedBox(width: 8),
+
+                        /// RIGHT → DATE RANGE
                         Expanded(
-                          child: Text(
-                            item['reporting_to_name'] ?? "",
-                            maxLines: 1,
-                            textAlign: TextAlign.end,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 11),
+                          flex: 10,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+
+                              const Icon(
+                                Icons.calendar_today,
+                                size: 12,
+                                color: Colors.grey,
+                              ),
+
+                              const SizedBox(width: 4),
+
+                              Flexible(
+                                child: Text(
+                                  "${formatDate(item['from_date'])} → ${formatDate(item['to_date'])} "
+                                      "(${item['days']} ${double.tryParse(item['days'].toString()) == 1 ? 'day' : 'days'})",
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.end,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
-                    ),
-                    // const SizedBox(height: 6),
-                    // if (status == 0)
-                    //   // Row(
-                    //   //   mainAxisAlignment: MainAxisAlignment.end,
-                    //     // children: [
-                    //       // _actionBtn(
-                    //       //   icon: Icons.close,
-                    //       //   label: "Reject",
-                    //       //   color: Colors.red,
-                    //       //   onTap: () => rejectLeave(item['leave_id'].toString()),
-                    //       // ),
-                    //       // const SizedBox(width: 6),
-                    //       // _actionBtn(
-                    //       //   icon: Icons.check,
-                    //       //   label: "Approve",
-                    //       //   color: Colors.green,
-                    //       //   onTap: () => approveLeave(item['leave_id'].toString()),
-                    //       // ),
-                    //     // ],
-                    //   ),
-                    ],
+                    )
+                  ],
                 ),
               ),
             ],
           ),
 
-          /// REASON + EXPAND
+          const SizedBox(height: 6),
+
+          /// 🔹 ROW 3 → APPLIED DATE + REPORTING
+          Row(
+            children: [
+
+              /// LEFT → Applied Date
+              Row(
+                children: [
+                  const Icon(Icons.access_time, size: 12, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Text(
+                    formatDate(appliedDate.toString()),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                ],
+              ),
+
+              /// RIGHT → Reporting Name (FULL RIGHT ALIGN)
+              Expanded(
+                child: Text(
+                  item['reporting_to_name'] ?? "",
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          /// 🔹 REASON
           if ((item['reason'] ?? "").toString().isNotEmpty) ...[
             const SizedBox(height: 8),
 
@@ -672,10 +619,10 @@ class _TeamLeavesState extends State<TeamLeaves> {
                       child: Text(
                         item['reason'],
                         maxLines: overflow
-                            ? (expandedIndex.contains(index) ? null : 2)
+                            ? (expandedIndex.contains("reason_$index") ? null : 2)
                             : null,
                         overflow: overflow
-                            ? (expandedIndex.contains(index)
+                            ? (expandedIndex.contains("reason_$index")
                             ? TextOverflow.visible
                             : TextOverflow.ellipsis)
                             : TextOverflow.visible,
@@ -692,15 +639,15 @@ class _TeamLeavesState extends State<TeamLeaves> {
                       GestureDetector(
                         onTap: () {
                           setState(() {
-                            if (expandedIndex.contains(index)) {
-                              expandedIndex.remove(index);
+                            if (expandedIndex.contains("reason_$index")) {
+                              expandedIndex.remove("reason_$index");
                             } else {
-                              expandedIndex.add(index);
+                              expandedIndex.add("reason_$index");
                             }
                           });
                         },
                         child: Icon(
-                          expandedIndex.contains(index)
+                          expandedIndex.contains("reason_$index")
                               ? Icons.expand_less
                               : Icons.expand_more,
                           size: 18,
@@ -717,6 +664,7 @@ class _TeamLeavesState extends State<TeamLeaves> {
             ),
           ],
 
+          /// 🔹 REJECT REASON
           if (status == 2 && (item['reject_reason'] ?? "").toString().isNotEmpty) ...[
             const SizedBox(height: 10),
 
@@ -740,10 +688,10 @@ class _TeamLeavesState extends State<TeamLeaves> {
                       child: Text(
                         item['reject_reason'],
                         maxLines: overflow
-                            ? (expandedIndex.contains(index) ? null : 2)
+                            ? (expandedIndex.contains("reject_$index") ? null : 2)
                             : null,
                         overflow: overflow
-                            ? (expandedIndex.contains(index)
+                            ? (expandedIndex.contains("reject_$index")
                             ? TextOverflow.visible
                             : TextOverflow.ellipsis)
                             : TextOverflow.visible,
@@ -760,15 +708,15 @@ class _TeamLeavesState extends State<TeamLeaves> {
                       GestureDetector(
                         onTap: () {
                           setState(() {
-                            if (expandedIndex.contains(index)) {
-                              expandedIndex.remove(index);
+                            if (expandedIndex.contains("reject_$index")) {
+                              expandedIndex.remove("reject_$index");
                             } else {
-                              expandedIndex.add(index);
+                              expandedIndex.add("reject_$index");
                             }
                           });
                         },
                         child: Icon(
-                          expandedIndex.contains(index)
+                          expandedIndex.contains("reject_$index")
                               ? Icons.expand_less
                               : Icons.expand_more,
                           size: 18,
@@ -791,11 +739,11 @@ class _TeamLeavesState extends State<TeamLeaves> {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      // decoration: BoxDecoration(
-      //   color: color.withOpacity(0.12),
-      //   borderRadius: BorderRadius.circular(20),
-      //   border: Border.all(color: color.withOpacity(0.3)),
-      // ),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
       child: Text(
         text,
         style: TextStyle(
@@ -807,39 +755,6 @@ class _TeamLeavesState extends State<TeamLeaves> {
     );
   }
 
-  Widget _actionBtn({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color.withOpacity(0.4)),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 14, color: color),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: color,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   bool isTextOverflow(String text, double maxWidth, TextStyle style) {
     final textSpan = TextSpan(text: text, style: style);
@@ -883,7 +798,7 @@ class _TeamLeavesState extends State<TeamLeaves> {
     return Scaffold(
         appBar: AppBar(
           title: Text(
-            'Team Leaves',
+            'Leaves',
             style: TextStyle(
               color: Colors.white,
               fontSize: _s(20, scale),
@@ -892,6 +807,8 @@ class _TeamLeavesState extends State<TeamLeaves> {
           backgroundColor: const Color(0xFF0557a2),
           iconTheme: const IconThemeData(color: Colors.white),
         ),
+        drawer: HrDrawer( currentRoute :'Leaves'),
+      bottomNavigationBar: const HrFooter(selectedIndex: null),
         body: RefreshIndicator(
           onRefresh: () async {
             fetchLeaves();
@@ -899,8 +816,9 @@ class _TeamLeavesState extends State<TeamLeaves> {
           child: Column(
         children: [
 
+          const SizedBox(height: 8),
           Padding(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(5),
             child: topFilters(scale),
           ),
 
@@ -941,134 +859,192 @@ class _TeamLeavesState extends State<TeamLeaves> {
   }
 
   Widget topFilters(double scale) {
-
     return SizedBox(
-      width: double.infinity,
-      child: Row(
-        children: [
+      height: 50, // important for proper layout
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
 
-          /// SEARCH (always visible)
-          Expanded(
-            flex: isSearchExpanded ? 6 : 2,
-            child: expandableSearch(scale),
-          ),
+            /// SEARCH
+            expandableSearch(scale),
+            // SizedBox(
+            //   height: 40,
+            // width : 200,
+            //   // width: isSearchExpanded ? 350 : 160,
+            //   child: expandableSearch(scale),
+            // ),
 
-          /// 👉 HIDE OTHER FILTERS WHEN SEARCH IS OPEN
-          if (!isSearchExpanded) ...[
-            const SizedBox(width: 8),
+            // if (!isSearchExpanded) ...[
+              const SizedBox(width: 8),
 
-            /// DATE
-            Expanded(
-              flex: 2,
-              child: GestureDetector(
-                onTap: pickDate,
-                child: Container(
-                  height: 40,
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.grey.shade300),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.calendar_today, size: 16),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          filterDate.isEmpty ? "Date" : selectedDate,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 12),
+              /// DATE
+              SizedBox(
+                width: 150,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    GestureDetector(
+                      onTap: pickDate,
+                      child: Container(
+                        height: 40,
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(50),
+                          // border: Border.all(color: Colors.grey.shade400),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.calendar_today, size: 16),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                filterDate.isEmpty ? "" : selectedDate,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ),
+                            if (filterDate.isNotEmpty)
+                              GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    filterDate = "";
+                                  });
+                                  applyFilter();
+                                },
+                                child: const Icon(Icons.close, size: 16),
+                              ),
+                          ],
                         ),
                       ),
+                    ),
 
-                      //  CLEAR BUTTON
-                      if (filterDate.isNotEmpty)
-                        GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              filterDate = "";
-                            });
-                            applyFilter();
-                          },
-                          child: const Icon(Icons.close, size: 16),
+                    /// LABEL
+                    Positioned(
+                      left: 12,
+                      top: -8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        color: Colors.white,
+                        child: const Text(
+                          "Date",
+                          style: TextStyle(fontSize: 11, color: Colors.black),
                         ),
-                    ],
-                  ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
 
-            const SizedBox(width: 8),
+              const SizedBox(width: 8),
 
-            /// LEAVE TYPE
-            Expanded(
-              flex: 2,
-              child: premiumDropdown(
-                value: selectedLeaveType,
-                items: leaveTypes,
-                icon: Icons.category,
-                onChanged: (val) {
-                  setState(() => selectedLeaveType = val);
-                  applyFilter();
-                },
+              /// LEAVE TYPE
+              SizedBox(
+                width: 150,
+                child: premiumDropdown(
+                  label: "Leave Type",
+                  value: selectedLeaveType,
+                  items: leaveTypes,
+                  icon: Icons.category,
+                  onChanged: (val) {
+                    setState(() => selectedLeaveType = val);
+                    applyFilter();
+                  },
+                ),
               ),
-            ),
 
-            const SizedBox(width: 8),
+              const SizedBox(width: 8),
 
-            /// STATUS
-            Expanded(
-              flex: 2,
-              child: premiumDropdown(
-                value: selectedStatus,
-                items: statusMap,
-                icon: Icons.flag,
-                onChanged: (val) {
-                  setState(() => selectedStatus = val);
-                  applyFilter();
-                },
+              /// STATUS
+              SizedBox(
+                width: 150,
+                child: premiumDropdown(
+                  label: "Status",
+                  value: selectedStatus,
+                  items: statusMap,
+                  icon: Icons.flag,
+                  onChanged: (val) {
+                    setState(() => selectedStatus = val);
+                    applyFilter();
+                  },
+                ),
               ),
-            ),
-          ],
-        ],
+            ],
+          // ],
+        ),
       ),
     );
   }
 
+
   Widget premiumDropdown({
+    required String label,
     required String value,
     required Map<String, String> items,
     required Function(String) onChanged,
     required IconData icon,
   }) {
-    return Container(
-      height: 40,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: value,
-          isExpanded: true,
-          icon: const Icon(Icons.keyboard_arrow_down),
-          items: items.entries.map((e) {
-            return DropdownMenuItem<String>(
-              value: e.key, // actual value (0,1,2)
-              child: Text(
-                e.value, // display text (Pending, Approved)
-                style: const TextStyle(fontSize: 12),
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        /// MAIN FIELD
+        Container(
+          height: 40,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade100,
+            borderRadius: BorderRadius.circular(50),
+            // border: Border.all(color: Colors.grey.shade400),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 16),
+              const SizedBox(width: 6),
+              Expanded(
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: value,
+                    isExpanded: true,
+                    icon: const Icon(Icons.keyboard_arrow_down),
+                    items: items.entries.map((e) {
+                      return DropdownMenuItem<String>(
+                        value: e.key,
+                        child: Text(
+                          e.value,
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      if (val != null) onChanged(val);
+                    },
+                  ),
+                ),
               ),
-            );
-          }).toList(),
-          onChanged: (val) {
-            if (val != null) onChanged(val);
-          },
+            ],
+          ),
         ),
-      ),
+
+        /// FLOATING LABEL (ATTACHED TO BORDER)
+        Positioned(
+          left: 12,
+          top: -8,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            color: Colors.white,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: Colors.black,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
