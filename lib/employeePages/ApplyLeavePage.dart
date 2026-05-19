@@ -391,6 +391,18 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
       return;
     }
 
+    if (reasonController.text.trim().length < 5) {
+      setState(() => reasonError = true);
+
+      FocusScope.of(context).requestFocus(reasonFocus);
+
+      AppToast.show(
+        "Reason must be minimum 5 characters",
+        isError: true,
+      );
+      return;
+    }
+
     if (toDate!.isBefore(fromDate!)) {
       setState(() {
         fromDateError = true;
@@ -692,24 +704,63 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
     );
   }
 
+  // void resetForm() {
+  //   fromDate = selectedDateSafe;
+  //   toDate = selectedDateSafe;
+  //   leaveFor = "1";
+  //   days = 1.0;
+  //
+  //   selectedLeaveTypeId =
+  //       leaveTypes.isNotEmpty ? leaveTypes[0]['type_id'].toString() : null;
+  //
+  //   reasonController.clear();
+  //
+  //   updateControllers(); //  must
+  //
+  //   setState(() {});
+  // }
+
   void resetForm() {
     fromDate = selectedDateSafe;
     toDate = selectedDateSafe;
     leaveFor = "1";
     days = 1.0;
 
-    selectedLeaveTypeId =
-        leaveTypes.isNotEmpty ? leaveTypes[0]['type_id'].toString() : null;
+    // REMOVE AUTO SELECT
+    selectedLeaveTypeId = null;
 
     reasonController.clear();
 
-    updateControllers(); //  must
+    updateControllers();
 
     setState(() {});
   }
 
   Widget _applyTab() {
     final scale = _calcScaleFromWidth(MediaQuery.of(context).size.width);
+    Map<String, dynamic>? selectedLeaveData;
+
+    if (selectedLeaveTypeId != null && selectedLeaveTypeId!.isNotEmpty) {
+      try {
+        selectedLeaveData = leaveTypes.firstWhere(
+          (e) => e['type_id'].toString() == selectedLeaveTypeId,
+        );
+      } catch (e) {
+        selectedLeaveData = null;
+      }
+    }
+
+// AVAILABLE COUNT
+    double availableLeave = double.tryParse(
+          (selectedLeaveData?['pending'] ?? 0).toString(),
+        ) ??
+        0;
+
+// SHOW WARNING ONLY AFTER USER SELECTION
+    bool showLopWarning = selectedLeaveData != null &&
+        selectedLeaveTypeId != "0" &&
+        days > availableLeave;
+
     return RefreshIndicator(
       color: const Color(0xFF0557a2),
       onRefresh: fetchLeaveData,
@@ -808,8 +859,8 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
                     LayoutBuilder(
                       builder: (context, constraints) {
                         double itemWidth = constraints.maxWidth > 650
-                            ? constraints.maxWidth / 6
-                            : constraints.maxWidth / 3;
+                            ? constraints.maxWidth / 4
+                            : constraints.maxWidth / 2;
 
                         return Wrap(
                           crossAxisAlignment: WrapCrossAlignment.start,
@@ -858,6 +909,46 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
                   ],
                 ),
               ),
+
+              if (showLopWarning) ...[
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: Colors.orange.shade300,
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.warning_amber_rounded,
+                        color: Colors.orange.shade800,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          "Selected leave exceeds available ${selectedLeaveData?['type'] ?? ''} balance. Additional leave days will be considered as Loss of Pay (LOP).",
+                          style: TextStyle(
+                            fontSize: 12,
+                            height: 1.4,
+                            color: Colors.orange.shade900,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
 
               SizedBox(height: _s(12, scale)),
 
@@ -928,9 +1019,7 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
                                 });
                               },
                               decoration: premiumInput("Leave For",
-                                  icon: Icons.timelapse
-                              ),
-
+                                  icon: Icons.timelapse),
                             ),
                           )),
 
@@ -943,8 +1032,11 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
                             focusNode: fromDateFocus,
                             controller: fromDateController,
                             onTap: () => pickDate(true),
-                            decoration: premiumInput("From Date",
-                                icon: Icons.calendar_today,hasError: fromDateError,),
+                            decoration: premiumInput(
+                              "From Date",
+                              icon: Icons.calendar_today,
+                              hasError: fromDateError,
+                            ),
                           ),
                         ),
                       ),
@@ -960,8 +1052,11 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
                             onTap: leaveFor == "0.5"
                                 ? null
                                 : () => pickDate(false),
-                            decoration: premiumInput("To Date",
-                                icon: Icons.calendar_today,hasError: toDateError,),
+                            decoration: premiumInput(
+                              "To Date",
+                              icon: Icons.calendar_today,
+                              hasError: toDateError,
+                            ),
                           ),
                         ),
                       ),
@@ -1812,29 +1907,24 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
   }
 
   InputDecoration premiumInput(
-      String label, {
-        IconData? icon,
-        bool hasError = false,
-        bool isOptional = false,
-      }) {
+    String label, {
+    IconData? icon,
+    bool hasError = false,
+    bool isOptional = false,
+  }) {
     return InputDecoration(
-
       /// LABEL WITH RED *
       label: RichText(
         text: TextSpan(
           children: [
-
             TextSpan(
               text: label,
               style: TextStyle(
-                color: hasError
-                    ? Colors.red
-                    : Colors.grey.shade700,
+                color: hasError ? Colors.red : Colors.grey.shade700,
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
               ),
             ),
-
             if (!isOptional)
               const TextSpan(
                 text: " *",
@@ -1850,18 +1940,14 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
       filled: true,
 
       /// LIGHT RED BG WHEN ERROR
-      fillColor: hasError
-          ? Colors.red.shade50
-          : Colors.grey.shade50,
+      fillColor: hasError ? Colors.red.shade50 : Colors.grey.shade50,
 
       prefixIcon: icon != null
           ? Icon(
-        icon,
-        size: 18,
-        color: hasError
-            ? Colors.red
-            : Colors.grey.shade600,
-      )
+              icon,
+              size: 18,
+              color: hasError ? Colors.red : Colors.grey.shade600,
+            )
           : null,
 
       contentPadding: const EdgeInsets.symmetric(
@@ -1872,27 +1958,21 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide(
-          color: hasError
-              ? Colors.red.shade300
-              : Colors.grey.shade300,
+          color: hasError ? Colors.red.shade300 : Colors.grey.shade300,
         ),
       ),
 
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide(
-          color: hasError
-              ? Colors.red.shade300
-              : Colors.grey.shade300,
+          color: hasError ? Colors.red.shade300 : Colors.grey.shade300,
         ),
       ),
 
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide(
-          color: hasError
-              ? Colors.red
-              : const Color(0xFF0557a2),
+          color: hasError ? Colors.red : const Color(0xFF0557a2),
           width: 1.6,
         ),
       ),
@@ -1928,19 +2008,6 @@ class _ApplyLeavePageState extends State<ApplyLeavePage>
         horizontal: _s(6, scale),
       ),
       child: child,
-    );
-  }
-
-  Widget _dateContent(String value, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(value),
-          const Icon(Icons.calendar_today, size: 16),
-        ],
-      ),
     );
   }
 }
@@ -2060,6 +2127,22 @@ class _EditLeaveModalState extends State<EditLeaveModal> {
 
   Future<void> updateLeave() async {
     if (isSubmitting) return;
+
+    if (reasonController.text.trim().isEmpty) {
+      AppToast.show(
+        "Enter reason",
+        isError: true,
+      );
+      return;
+    }
+
+    if (reasonController.text.trim().length < 5) {
+      AppToast.show(
+        "Reason must be minimum 5 characters",
+        isError: true,
+      );
+      return;
+    }
 
     final confirm = await showDialog<bool>(
       context: context,
@@ -2270,12 +2353,15 @@ class _EditLeaveModalState extends State<EditLeaveModal> {
                   TextField(
                     controller: reasonController,
                     maxLines: 2,
+                    maxLength: 500,
                     decoration: InputDecoration(
                       labelText: "Reason",
                       prefixIcon: Icon(Icons.edit, size: 18),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
+                    ).copyWith(
+                      helperText: "Minimum 5 characters",
                     ),
                   ),
                 ],

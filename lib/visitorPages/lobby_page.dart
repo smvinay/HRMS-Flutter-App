@@ -168,6 +168,8 @@ class _LobbyPageState extends State<LobbyPage> {
           }
 
           final photo = (v["image_path"] ?? "").toString();
+          final visitorProfile = (v["full_photopath"] ?? "").toString();
+          final profile_flag = (v["profile_flag"] ?? "").toString();
           final guestId = (v["guestid"] ?? "").toString();
 
           return _visitorListCard(
@@ -176,6 +178,8 @@ class _LobbyPageState extends State<LobbyPage> {
             time: time,
             toMeet: toMeet,
             photo: photo,
+            visitorProfile: visitorProfile,
+            profile_flag: profile_flag,
             guestId: guestId,
             index: index,
             scale: scale,
@@ -191,6 +195,8 @@ class _LobbyPageState extends State<LobbyPage> {
     required String time,
     required String toMeet,
     required String photo,
+    required String visitorProfile,
+    required String profile_flag,
     required String guestId,
     required int index,
     required double scale,
@@ -235,7 +241,9 @@ class _LobbyPageState extends State<LobbyPage> {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(_s(8, scale)),
                   child: Image.network(
-                    photo.isNotEmpty
+                    profile_flag == "1"
+                        ? "https://hrms.attendify.ai/guest_imgs/$visitorProfile"
+                        : photo.isNotEmpty
                         ? "https://hrms.attendify.ai/guest_imgs/$photo"
                         : 'https://via.placeholder.com/100',
 

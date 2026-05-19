@@ -30,7 +30,6 @@ class _VisitorFormPageState extends State<VisitorFormPage>
   bool _isFetchingNew = false;
   final FocusNode _employeeFocus = FocusNode();
   final ScrollController _scrollController = ScrollController();
-  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   Map<String, String?> _errors = {};
   late Map<int, TextEditingController> nameControllers = {};
   late Map<int, TextEditingController> phoneControllers = {};
@@ -1030,18 +1029,19 @@ class _VisitorFormPageState extends State<VisitorFormPage>
               ],
             ),
           ),
-          counter: maxLength != null
-              ? Transform.translate(
-            offset: const Offset(0, -5),
-            child: Text(
-              "${controller.text.length}/$maxLength",
-              style: TextStyle(
-                color: Colors.grey,
-                fontSize: _s(9, scale),
-              ),
-            ),
-          )
-              : null,
+          // counter: maxLength != null
+          //     ? Transform.translate(
+          //   offset: const Offset(0, -20),
+          //   child: Text(
+          //     "${controller.text.length}/$maxLength",
+          //     style: TextStyle(
+          //       color: Colors.grey,
+          //       fontSize: _s(9, scale),
+          //     ),
+          //   ),
+          // )
+          //     : null,
+
           floatingLabelBehavior:
           FloatingLabelBehavior.auto,
 
@@ -1067,8 +1067,9 @@ class _VisitorFormPageState extends State<VisitorFormPage>
       ),
     );
   }
-  Future<void> _archiveVisitor(String guestId, int index) async {
 
+
+  Future<void> _archiveVisitor(String guestId, int index) async {
     /// CONFIRMATION DIALOG
     final confirm = await showDialog<bool>(
       context: context,

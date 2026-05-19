@@ -188,11 +188,19 @@ class _HrVisitorsPageState extends State<HrVisitorsPage>
 
           GestureDetector(
             onTap: () {
-              showImage(v['image_path_full']);
+              showImage(
+                  v['image_path_full']
+              );
             },
+
             child: CircleAvatar(
               radius: 24,
-              backgroundImage: NetworkImage(v['image_path']),
+
+              backgroundImage: NetworkImage(
+                v['profile_flag'] == '1'
+                    ? v['full_photopath']
+                    : v['image_path'],
+              ),
             ),
           ),
 

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:ui';
 import 'dart:ui' as ui;
+import 'package:flutter/services.dart';
 import 'package:hive/hive.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
@@ -76,6 +77,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   String? errorText;
 
   bool isWithdrawing = false;
+  bool _instructionShown = false;
+  bool _instructionChecked = false;
 
   @override
   void initState() {
@@ -97,6 +100,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       vsync: this,
       duration: const Duration(milliseconds: 600),
     )..repeat(reverse: true);
+
   }
 
   @override
@@ -784,6 +788,32 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     breakTimeline = [];
                   });
 
+                  bool hasCheckOut = hasData &&
+                      (attendanceMap[key]['checkout'] != null &&
+                          attendanceMap[key]['checkout'] != "");
+
+                  bool hasAttendance = hasCheckIn || hasCheckOut;
+
+                  bool isAbsent =
+                      !hasAttendance &&
+                          !isHoliday &&
+                          selectedDate.isBefore(todayDate);
+
+                  if (isAbsent) {
+
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ApplyLeavePage(
+                          selectedDate: selectedDate,
+                          leaveId: 0,
+                        ),
+                      ),
+                    );
+
+                    return;
+                  }
+
                   // await loadBreakHistory(key);
                 },
                 onPageChanged: (newFocusedDay) {
@@ -796,6 +826,170 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     newFocusedDay.year,
                     newFocusedDay.month,
                   ); //  uses cache
+                },
+
+                onDayLongPressed: (selected, focused) async {
+
+                  DateTime today = DateTime.now();
+
+                  DateTime selectedDate =
+                  DateTime(selected.year, selected.month, selected.day);
+
+                  DateTime todayDate =
+                  DateTime(today.year, today.month, today.day);
+
+                  String key = DateFormat('yyyy-MM-dd').format(selectedDate);
+
+                  bool hasData = attendanceMap.containsKey(key);
+
+                  bool isHoliday = hasData &&
+                      attendanceMap[key]['holidaystatus'] == "Holiday";
+
+                  /// LEAVE CHECK
+                  bool hasLeave =
+                      hasData && attendanceMap[key]['leaves'] != null;
+
+                  bool isApprovedLeave = false;
+
+                  if (hasLeave) {
+                    List leaves = attendanceMap[key]['leaves'];
+
+                    isApprovedLeave =
+                        leaves.any((l) => l['status'] == 1);
+                  }
+
+                  /// ATTENDANCE CHECK
+                  bool hasCheckIn = hasData &&
+                      (attendanceMap[key]['checkin'] != null &&
+                          attendanceMap[key]['checkin'] != "");
+
+                  bool hasCheckOut = hasData &&
+                      (attendanceMap[key]['checkout'] != null &&
+                          attendanceMap[key]['checkout'] != "");
+
+                  bool hasAttendance = hasCheckIn || hasCheckOut;
+
+                  /// ABSENT DAY
+                  bool isAbsent =
+                      !hasAttendance &&
+                          !isHoliday &&
+                          selectedDate.isBefore(todayDate);
+
+                  /// CONDITIONS
+                  bool allowLongPress =
+                      (hasAttendance || isAbsent) &&
+                          !isHoliday &&
+                          !isApprovedLeave;
+
+                  if (!allowLongPress) {
+                    return;
+                  }
+                  HapticFeedback.lightImpact();
+                  final action = await showModalBottomSheet<String>(
+                    context: context,
+                    backgroundColor: Colors.white,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.vertical(
+                        top: Radius.circular(20),
+                      ),
+                    ),
+                    builder: (_) {
+                      return SafeArea(
+                        child: Padding(
+                          padding: const EdgeInsets.all(18),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+
+                              Container(
+                                width: 40,
+                                height: 4,
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade300,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                              ),
+
+                              const SizedBox(height: 18),
+
+                              const Icon(
+                                Icons.event_note,
+                                color: Color(0xFF0557a2),
+                                size: 34,
+                              ),
+
+                              const SizedBox(height: 12),
+
+                              Text(
+                                DateFormat('dd MMM yyyy').format(selectedDate),
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+
+                              const SizedBox(height: 8),
+
+                              const Text(
+                                "Do you want to apply leave for this date?",
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey,
+                                ),
+                              ),
+
+                              const SizedBox(height: 20),
+
+                              Row(
+                                children: [
+
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      onPressed: () {
+                                        Navigator.pop(context);
+                                      },
+                                      child: const Text("Cancel"),
+                                    ),
+                                  ),
+
+                                  const SizedBox(width: 10),
+
+                                  Expanded(
+                                    child: ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF0557a2),
+                                      ),
+                                      onPressed: () {
+                                        Navigator.pop(context, "apply");
+                                      },
+                                      child: const Text(
+                                        "Apply Leave",
+                                        style: TextStyle(color: Colors.white),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  );
+
+                  if (action == "apply") {
+
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ApplyLeavePage(
+                          selectedDate: selectedDate,
+                          leaveId: 0,
+                        ),
+                      ),
+                    );
+                  }
                 },
                 headerStyle: const HeaderStyle(
                   formatButtonVisible: false,
@@ -1608,7 +1802,119 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
+  Future<void> _showLongPressInstruction() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    bool alreadyShown =
+        prefs.getBool('attendance_longpress_instruction') ?? false;
+
+    if (alreadyShown || !mounted) return;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          insetPadding:
+          const EdgeInsets.symmetric(horizontal: 24),
+          child: Padding(
+            padding: const EdgeInsets.all(22),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0557a2)
+                        .withOpacity(0.08),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.touch_app_rounded,
+                    size: 30,
+                    color: Color(0xFF0557a2),
+                  ),
+                ),
+
+                const SizedBox(height: 18),
+
+                const Text(
+                  "Quick Leave Shortcut",
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                Text(
+                  "You can now long press on attendance dates to quickly apply leave for absent or attendance days.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.5,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+
+                const SizedBox(height: 22),
+
+                SizedBox(
+                  width: double.infinity,
+                  height: 46,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor:
+                      const Color(0xFF0557a2),
+                      shape: RoundedRectangleBorder(
+                        borderRadius:
+                        BorderRadius.circular(14),
+                      ),
+                      elevation: 0,
+                    ),
+                    onPressed: () async {
+                      await prefs.setBool(
+                        'attendance_longpress_instruction',
+                        true,
+                      );
+
+                      if (mounted) {
+                        Navigator.pop(context);
+                      }
+                    },
+                    child: const Text(
+                      "Got it",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget buildSelectedAttendance() {
+
+    if (!_instructionChecked) {
+      _instructionChecked = true;
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showLongPressInstruction();
+      });
+    }
+
     final scale = _calcScaleFromWidth(MediaQuery.of(context).size.width);
 
     String key = DateFormat('yyyy-MM-dd').format(selectedDay);
